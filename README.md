@@ -1,0 +1,96 @@
+# kuku-lan-spy
+
+Inventory the devices on your local network and write the results as JSON.
+
+## Requirements
+
+- `arp-scan`, `nmap`
+- `avahi-browse` (avahi) for mDNS/Bonjour discovery
+- `nmblookup` (smbclient) for NetBIOS names
+- Python 3 (standard library only)
+
+On Arch Linux: `sudo pacman -S arp-scan nmap avahi smbclient python`
+
+## Scripts
+
+### `lan-spy.sh` — run a scan
+
+```sh
+sudo ./lan-spy.sh [interface] [output-file]
+```
+
+Must run as root. Defaults to the interface of the default route (so Docker
+bridges are ignored) and to `lan-report-<timestamp>.json`.
+
+Steps:
+
+1. **arp-scan** and **nmap host discovery** (`-sn`) find live hosts. The union
+   of both is used, plus this machine.
+2. **Reverse DNS** (`getent`) and **NetBIOS** (`nmblookup`) names per host.
+3. **mDNS** — listens for 15 seconds with `avahi-browse`, keeping only records
+   seen on the scanned interface.
+4. **Port scan** — nmap service and OS detection (`-sV -O`) on nmap's top 100
+   TCP ports plus 6668 (Tuya local API). `-Pn` is used, and hosts that do not
+   answer are retried once, since sleeping IoT devices often miss the first
+   attempt. This machine is skipped.
+5. **`build-report.py`** turns the collected data into the JSON report.
+
+The raw nmap XML is kept in `lan-report-<timestamp>-raw/` for troubleshooting.
+When run through `sudo`, the report and raw folder are handed back to the
+calling user.
+
+### `build-report.py` — build the JSON report
+
+Called by `lan-spy.sh`; you normally don't run it directly.
+
+```sh
+./build-report.py <scan-dir> <interface> <cidr> <gateway> <hostname> > report.json
+```
+
+Reads the intermediate files from `<scan-dir>` (`arp.tsv`, `discovery.xml`,
+`dns.tsv`, `netbios.tsv`, `mdns.txt`, `targets.txt`, `deep.xml`,
+`deep-retry.xml`) and writes one entry per device:
+
+| Field | Meaning |
+|---|---|
+| `ip`, `mac` | Addresses |
+| `vendor` | From nmap, falling back to nmap's MAC prefix list |
+| `mac_locally_administered` | `true` for randomized/private MACs (usually phones and laptops) |
+| `hostname`, `netbios`, `mdns` | Names and services the device announces |
+| `role` | `gateway` or `this machine` |
+| `seen_by` | Which discovery tools found it (`arp-scan`, `nmap`) |
+| `deep_scan` | `ok`, `no response (...)`, or `skipped (this machine)` |
+| `ports` | Ports nmap reported, with service, version and an IoT `hint` for 6668, 8009 and 9999 |
+| `ports_not_shown` | Summary of the remaining ports, e.g. `100 closed` |
+| `os` | Best OS guess, top guesses with accuracy, device types, CPEs |
+| `latency_ms`, `network_distance` | From the port scan |
+
+OS guesses for hosts with no open ports are unreliable — nmap needs at least
+one open and one closed port to fingerprint well.
+
+### `merge-reports.py` — combine several reports
+
+```sh
+./merge-reports.py [report.json ...] > lan-devices-merged.json
+```
+
+With no arguments, merges every `lan-report-*.json` in the current directory.
+Because sleepy devices answer some runs and not others, merging a few scans
+gives a more complete picture than any single one.
+
+- Devices are matched by MAC address (by IP when there is none).
+- For names, vendor and role, the newest report with a value wins.
+- Ports, OS, latency and distance are taken together from the newest report
+  in which the device was actually port-scanned.
+- Each device also gets `ips_seen`, `first_seen`, `last_seen`, `times_seen`
+  and `last_port_scan`.
+
+## Typical use
+
+```sh
+sudo ./lan-spy.sh          # run a few times, a few minutes apart
+./merge-reports.py > lan-devices-merged.json
+jq '.devices[] | {ip, vendor, ports}' lan-devices-merged.json
+```
+
+Only scan networks you own or are allowed to scan.
