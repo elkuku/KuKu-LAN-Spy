@@ -94,7 +94,9 @@ def os_html(d):
     out = escape(name)
     if os.get("accuracy"):
         out += f' <span class="muted">{os["accuracy"]}%</span>'
-    if not any(p.get("state") == "open" for p in d.get("ports") or []):
+    if os.get("source") == "local":
+        out += '<div class="muted">read locally</div>'
+    elif not any(p.get("state") == "open" for p in d.get("ports") or []):
         out += '<div class="badge">unreliable: no open ports</div>'
     return out
 

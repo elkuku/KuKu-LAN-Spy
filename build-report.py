@@ -4,9 +4,12 @@
 Usage: build-report.py <scan-dir> <interface> <cidr> <gateway> <hostname> > report.json
 
 <scan-dir> holds arp.tsv, discovery.xml, dns.tsv, netbios.tsv, mdns.txt,
-targets.txt, deep.xml and (optionally) deep-retry.xml.
+targets.txt, deep.xml, local-ss.txt and (optionally) deep-retry.xml.
+
+This machine cannot scan itself over the LAN, so its MAC, OS and listening
+ports are read locally (/sys, /etc/os-release and `ss -ltnp` output).
 """
-import ipaddress, json, sys, xml.etree.ElementTree as ET
+import ipaddress, json, platform, re, socket, sys, xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -147,14 +150,66 @@ for h in deep_hosts:
     if dist is not None:
         d["network_distance"] = int(dist.get("value"))
 
-dev(local_ip)
+def local_ports():
+    """TCP ports this machine listens on that are reachable from the LAN."""
+    path = tmp / "local-ss.txt"
+    ports = {}
+    for line in (path.read_text().splitlines() if path.exists() else []):
+        f = line.split(None, 5)
+        if len(f) < 5:
+            continue
+        host, _, port = f[3].rpartition(":")
+        host = host.strip("[]").split("%")[0].removeprefix("::ffff:")
+        if host not in ("*", "0.0.0.0", "::", local_ip) or not port.isdigit():
+            continue
+        procs = re.findall(r'\("([^"]+)"', f[5]) if len(f) > 5 else []
+        entry = ports.setdefault(int(port), {"port": int(port), "proto": "tcp", "state": "open",
+                                             "service": None, "version": None, "procs": []})
+        entry["procs"] += [p for p in procs if p not in entry["procs"]]
+    for p in ports.values():
+        try:
+            p["service"] = socket.getservbyport(p["port"], "tcp")
+        except OSError:
+            pass
+        p["version"] = ", ".join(p.pop("procs")) or None
+        if p["port"] in IOT_HINTS:
+            p["hint"] = IOT_HINTS[p["port"]]
+    return sorted(ports.values(), key=lambda p: p["port"])
+
+
+def local_os():
+    info = {}
+    try:
+        for line in open("/etc/os-release", encoding="utf-8"):
+            k, _, v = line.strip().partition("=")
+            info[k] = v.strip('"')
+    except OSError:
+        pass
+    distro = info.get("PRETTY_NAME") or info.get("NAME") or platform.system()
+    return {
+        "best_guess": f"{distro} ({platform.system()} {platform.release()}, {platform.machine()})",
+        "source": "local", "device_types": ["general purpose"],
+    }
+
+
+def fill_local(d):
+    d["role"] = "this machine"
+    d["deep_scan"] = "local"
+    d["hostname"] = d["hostname"] or myhost
+    if "local" not in d["seen_by"]:
+        d["seen_by"].append("local")
+    try:
+        d["mac"] = Path(f"/sys/class/net/{iface}/address").read_text().strip().lower() or d["mac"]
+    except OSError:
+        pass
+    d["ports"] = local_ports()
+    d["os"] = local_os()
+
+
+fill_local(dev(local_ip))
 ouis = oui_db()
 for ip, d in devices.items():
-    if ip == local_ip:
-        d["role"] = "this machine"
-        d["deep_scan"] = "skipped (this machine)"
-        d["hostname"] = d["hostname"] or myhost
-    elif ip == gateway:
+    if ip == gateway:
         d["role"] = "gateway"
     if d["mac"]:
         first = int(d["mac"][:2], 16)
@@ -167,7 +222,8 @@ report = {
     "scan": {
         "date": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "host": myhost, "interface": iface, "network": str(net),
-        "local_ip": local_ip, "gateway": gateway, "device_count": len(devices),
+        "local_ip": local_ip, "local_mac": devices[local_ip]["mac"],
+        "gateway": gateway, "device_count": len(devices),
     },
     "devices": sorted(devices.values(), key=lambda d: ipaddress.ip_address(d["ip"])),
 }

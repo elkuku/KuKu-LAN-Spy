@@ -34,7 +34,11 @@ Steps:
    TCP ports plus 6668 (Tuya local API). `-Pn` is used, and hosts that do not
    answer are retried once, since sleeping IoT devices often miss the first
    attempt. This machine is skipped.
-5. **`build-report.py`** turns the collected data into the JSON report.
+5. **This machine** cannot scan itself over the LAN, so its details are read
+   locally instead: the interface MAC (`/sys/class/net`), the OS and kernel
+   (`/etc/os-release`, `uname`) and the TCP ports it listens on for the LAN
+   (`ss -ltnp`, with the owning process as the version).
+6. **`build-report.py`** turns the collected data into the JSON report.
 
 The raw nmap XML is kept in `lan-report-<timestamp>-raw/` for troubleshooting.
 When run through `sudo`, the report and raw folder are handed back to the
@@ -60,7 +64,7 @@ Reads the intermediate files from `<scan-dir>` (`arp.tsv`, `discovery.xml`,
 | `hostname`, `netbios`, `mdns` | Names and services the device announces |
 | `role` | `gateway` or `this machine` |
 | `seen_by` | Which discovery tools found it (`arp-scan`, `nmap`) |
-| `deep_scan` | `ok`, `no response (...)`, or `skipped (this machine)` |
+| `deep_scan` | `ok`, `no response (...)`, or `local` (this machine, read locally) |
 | `ports` | Ports nmap reported, with service, version and an IoT `hint` for 6668, 8009 and 9999 |
 | `ports_not_shown` | Summary of the remaining ports, e.g. `100 closed` |
 | `os` | Best OS guess, top guesses with accuracy, device types, CPEs |
@@ -79,7 +83,8 @@ With no arguments, merges every `lan-report-*.json` in the current directory.
 Because sleepy devices answer some runs and not others, merging a few scans
 gives a more complete picture than any single one.
 
-- Devices are matched by MAC address (by IP when there is none).
+- Devices are matched by MAC address (by IP when there is none). This
+  machine has no MAC in older reports, so it is matched there by hostname.
 - For names, vendor and role, the newest report with a value wins.
 - Ports, OS, latency and distance are taken together from the newest report
   in which the device was actually port-scanned.

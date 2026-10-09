@@ -91,6 +91,10 @@ if [[ -s "$TMP/retry.txt" ]]; then
     deep_scan "$TMP/retry.txt" "$TMP/deep-retry.xml"
 fi
 
+log "Listening ports on this machine..."
+# Scanning ourselves over the LAN does not work, so ask the kernel instead.
+ss -Hltnp > "$TMP/local-ss.txt" 2>/dev/null
+
 log "Building JSON..."
 python3 -I "$SCRIPT_DIR/build-report.py" "$TMP" "$IFACE" "$CIDR" "$GATEWAY" "$(hostname)" > "$OUT"
 
