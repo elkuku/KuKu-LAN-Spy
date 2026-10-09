@@ -21,13 +21,13 @@ CSS = """
 :root {
   --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #6b7280; --border: #e5e7eb;
   --chip: #eef2ff; --chip-text: #3730a3; --hint: #ecfdf5; --hint-text: #065f46;
-  --up: #16a34a; --down: #9ca3af; --warn: #b45309; --name: #1d4ed8;
+  --up: #16a34a; --down: #9ca3af; --warn: #b45309; --name: #1d4ed8; --unnamed: #eab308;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #111317; --card: #1a1d23; --text: #e6e8eb; --muted: #9aa1ab; --border: #2b3038;
     --chip: #262b45; --chip-text: #c7d2fe; --hint: #10302a; --hint-text: #a7f3d0;
-    --up: #22c55e; --down: #4b5563; --warn: #f59e0b; --name: #93c5fd;
+    --up: #22c55e; --down: #4b5563; --warn: #f59e0b; --name: #93c5fd; --unnamed: #facc15;
   }
 }
 * { box-sizing: border-box; }
@@ -58,6 +58,7 @@ tr.offline td { opacity: .55; }
 .badge { font-size: 11px; color: var(--warn); }
 .name { display: block; font-size: 16px; font-weight: 600; color: var(--name); }
 tr.named td:first-child { box-shadow: inset 3px 0 0 var(--name); }
+tr.unnamed td:first-child { box-shadow: inset 3px 0 0 var(--unnamed); }
 """
 
 
@@ -143,13 +144,17 @@ def device_row(d, online, merged, total_reports, custom_names):
     if d.get("mac_locally_administered"):
         mac += '<div class="muted">randomized</div>'
 
+    # Blue marker for named devices, yellow for online ones that still need a name.
+    row_class = " ".join(filter(None, ["named" if custom else "unnamed" if online else "",
+                                       "" if online else "offline"]))
+
     latency = f'{d["latency_ms"]:g} ms' if d.get("latency_ms") is not None else "—"
     if merged:
         seen = f'{d.get("times_seen", 0)}/{total_reports}<div class="muted">last {escape(fmt_time(d.get("last_seen")))}</div>'
     else:
         seen = escape(d.get("deep_scan") or "")
 
-    return f"""<tr class="{' '.join(filter(None, ['' if online else 'offline', 'named' if custom else '']))}">
+    return f"""<tr class="{row_class}">
 <td class="mono"><span class="dot{' up' if online else ''}"></span>{escape(d["ip"])}</td>
 <td>{who}<div class="muted">{"<br>".join(extra)}</div></td>
 <td class="mono">{mac}</td>
@@ -211,7 +216,7 @@ def render(data, refresh, custom_names):
 </table>
 </div>
 <p class="muted">Generated {escape(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))} by render-html.py.
-Greyed-out rows were not seen in the latest scan.</p>
+Greyed-out rows were not seen in the latest scan; a yellow edge marks online devices without a custom name.</p>
 </main>
 </body>
 </html>

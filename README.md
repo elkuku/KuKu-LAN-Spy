@@ -120,9 +120,11 @@ from the latest scan are greyed out.
 
 To give devices your own names, copy `device-names.example.txt` to
 `device-names.txt` and add one line per device: a MAC or IP address, then the
-name. The name is shown in bold above the vendor. `render-html.py` (and so
-`lan-watch.sh`) picks the file up automatically; `--names` points to another
-one. `device-names.txt` is git-ignored since it lists your MACs.
+name. Named rows get a blue edge with the name above the vendor; online
+devices without a name get a yellow edge, so you can see which still need one.
+`render-html.py` (and so `lan-watch.sh`) picks the file up automatically;
+`--names` points to another one. `device-names.txt` is git-ignored since it
+lists your MACs.
 
 ## Typical use
 
