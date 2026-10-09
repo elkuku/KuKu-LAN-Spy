@@ -1,6 +1,7 @@
 # kuku-lan-spy
 
-Inventory the devices on your local network and write the results as JSON.
+Inventory the devices on your local network and write the results as JSON
+and as an HTML page.
 
 ## Requirements
 
@@ -85,12 +86,46 @@ gives a more complete picture than any single one.
 - Each device also gets `ips_seen`, `first_seen`, `last_seen`, `times_seen`
   and `last_port_scan`.
 
+### `lan-watch.sh` — scan repeatedly
+
+```sh
+sudo ./lan-watch.sh [interval-seconds] [interface]
+```
+
+Runs `lan-spy.sh` every 300 seconds by default (start to start), then merges
+all reports and regenerates the HTML page. Everything goes into `reports/`:
+
+- `reports/lan-report-<timestamp>.json` (plus `-raw/` folders)
+- `reports/lan-devices-merged.json`
+- `reports/lan-devices.html`, which reloads itself every 60 seconds
+
+Stop it with Ctrl+C. This is a stand-in until the scan runs from cron.
+
+### `render-html.py` — HTML page
+
+```sh
+./render-html.py <report.json> [--refresh SECONDS] > lan-devices.html
+```
+
+Renders a single report or a merged inventory as one self-contained HTML file
+(no external resources, light and dark mode). It shows one row per device with
+IP, vendor and names, MAC, open ports (with IoT hints), OS guess, latency and,
+for merged input, how often and when the device was last seen. Devices missing
+from the latest scan are greyed out.
+
 ## Typical use
+
+```sh
+sudo ./lan-watch.sh        # scan every 5 minutes, Ctrl+C to stop
+xdg-open reports/lan-devices.html
+```
+
+Or by hand:
 
 ```sh
 sudo ./lan-spy.sh          # run a few times, a few minutes apart
 ./merge-reports.py > lan-devices-merged.json
-jq '.devices[] | {ip, vendor, ports}' lan-devices-merged.json
+./render-html.py lan-devices-merged.json > lan-devices.html
 ```
 
 Only scan networks you own or are allowed to scan.
