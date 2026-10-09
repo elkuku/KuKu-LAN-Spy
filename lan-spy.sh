@@ -68,9 +68,16 @@ PORTS="$( {
     tr ',' '\n' <<< "$EXTRA_PORTS"
 } | sort -nu | paste -sd,)"
 
+# Without limits one misbehaving device (tarpitting, half-open probes) can stall
+# the scan for hours. Slow but healthy hosts finish in ~6 min, so --host-timeout
+# drops only the stuck ones and keeps the XML valid. The outer timeout is a last
+# resort if nmap itself hangs; its XML is then truncated and the deep results lost.
 deep_scan() {
-    nmap -Pn -sV -O --osscan-guess -p "T:$PORTS" -T4 --version-light -e "$IFACE" \
-        -iL "$1" -oX "$2" > /dev/null 2>&1
+    timeout -k 30 25m \
+        nmap -Pn -sV -O --osscan-guess -p "T:$PORTS" -T4 --version-light -e "$IFACE" \
+            --max-retries 2 --host-timeout 10m \
+            -iL "$1" -oX "$2" > /dev/null 2>&1 \
+        || log "nmap deep scan of $1 exited with status $? (timed out?)"
 }
 
 # IPs nmap reported as up in an XML file (down hosts are omitted from it).
