@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Render a lan-spy report or merged inventory as a standalone HTML page.
 
-Usage: ./render-html.py <report.json> [--refresh SECONDS] > lan-devices.html
+Usage: ./render-html.py <report.json> [--refresh SECONDS] [--names FILE] > lan-devices.html
 
 Accepts the output of lan-spy.sh (single scan) or merge-reports.py (merged).
+Custom device names are read from device-names.txt next to this script, if it
+exists (see device-names.example.txt).
 """
 import argparse
 import ipaddress
@@ -13,17 +15,19 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
+DEFAULT_NAMES = Path(__file__).resolve().parent / "device-names.txt"
+
 CSS = """
 :root {
   --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #6b7280; --border: #e5e7eb;
   --chip: #eef2ff; --chip-text: #3730a3; --hint: #ecfdf5; --hint-text: #065f46;
-  --up: #16a34a; --down: #9ca3af; --warn: #b45309;
+  --up: #16a34a; --down: #9ca3af; --warn: #b45309; --name: #1d4ed8;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #111317; --card: #1a1d23; --text: #e6e8eb; --muted: #9aa1ab; --border: #2b3038;
     --chip: #262b45; --chip-text: #c7d2fe; --hint: #10302a; --hint-text: #a7f3d0;
-    --up: #22c55e; --down: #4b5563; --warn: #f59e0b;
+    --up: #22c55e; --down: #4b5563; --warn: #f59e0b; --name: #93c5fd;
   }
 }
 * { box-sizing: border-box; }
@@ -52,6 +56,8 @@ tr.offline td { opacity: .55; }
 .chip.hint { background: var(--hint); color: var(--hint-text); }
 .chip.filtered { background: transparent; border: 1px dashed var(--border); color: var(--muted); }
 .badge { font-size: 11px; color: var(--warn); }
+.name { display: block; font-size: 16px; font-weight: 600; color: var(--name); }
+tr.named td:first-child { box-shadow: inset 3px 0 0 var(--name); }
 """
 
 
@@ -101,11 +107,32 @@ def os_html(d):
     return out
 
 
-def device_row(d, online, merged, total_reports):
+def load_names(path):
+    """Read custom device names: one '<mac-or-ip> <name>' per line, '#' lines are comments."""
+    names = {}
+    for line in Path(path).read_text().splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2 and not parts[0].startswith("#"):
+            names[parts[0].lower().replace("-", ":")] = parts[1].strip()
+    return names
+
+
+def custom_name(d, names):
+    for key in (d.get("mac"), d["ip"]):
+        if key and key.lower() in names:
+            return names[key.lower()]
+    return None
+
+
+def device_row(d, online, merged, total_reports, custom_names):
     names = [d.get("hostname"), d.get("netbios")] + [m.get("hostname") for m in d.get("mdns") or []]
     names = list(dict.fromkeys(n for n in names if n))
     who = escape(d.get("vendor") or ("Private MAC" if d.get("mac_locally_administered") else "Unknown vendor"))
     extra = [escape(n) for n in names]
+    custom = custom_name(d, custom_names)
+    if custom:
+        extra.insert(0, who)
+        who = f'<span class="name">{escape(custom)}</span>'
     if d.get("role"):
         extra.insert(0, f"<b>{escape(d['role'])}</b>")
     services = sorted({m.get("service") for m in d.get("mdns") or [] if m.get("service")})
@@ -122,7 +149,7 @@ def device_row(d, online, merged, total_reports):
     else:
         seen = escape(d.get("deep_scan") or "")
 
-    return f"""<tr class="{'' if online else 'offline'}">
+    return f"""<tr class="{' '.join(filter(None, ['' if online else 'offline', 'named' if custom else '']))}">
 <td class="mono"><span class="dot{' up' if online else ''}"></span>{escape(d["ip"])}</td>
 <td>{who}<div class="muted">{"<br>".join(extra)}</div></td>
 <td class="mono">{mac}</td>
@@ -133,7 +160,7 @@ def device_row(d, online, merged, total_reports):
 </tr>"""
 
 
-def render(data, refresh):
+def render(data, refresh, custom_names):
     merged = "merged_from" in data
     if merged:
         reports = data["merged_from"]
@@ -150,7 +177,7 @@ def render(data, refresh):
     online = sum(1 for d in devices if is_online(d))
     open_ports = sum(1 for d in devices for p in d.get("ports") or [] if p.get("state") == "open")
 
-    rows = "\n".join(device_row(d, is_online(d), merged, total) for d in devices)
+    rows = "\n".join(device_row(d, is_online(d), merged, total, custom_names) for d in devices)
     meta_refresh = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
     stats = [
         (len(devices), "devices known" if merged else "devices"),
@@ -195,9 +222,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("report", help="lan-report-*.json or lan-devices-merged.json")
     ap.add_argument("--refresh", type=int, default=0, help="auto-reload the page every N seconds")
+    ap.add_argument("--names", default=DEFAULT_NAMES,
+                    help=f"custom device names file (default: {DEFAULT_NAMES.name} next to this script, if present)")
     args = ap.parse_args()
     data = json.loads(Path(args.report).read_text())
-    sys.stdout.write(render(data, args.refresh))
+    names_path = Path(args.names)
+    if names_path != DEFAULT_NAMES and not names_path.exists():
+        sys.exit(f"names file not found: {names_path}")
+    custom_names = load_names(names_path) if names_path.exists() else {}
+    sys.stdout.write(render(data, args.refresh, custom_names))
 
 
 if __name__ == "__main__":

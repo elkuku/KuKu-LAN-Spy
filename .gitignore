@@ -2,3 +2,4 @@ __pycache__/
 
 # Scan output (contains MACs, IPs and open ports of the local network)
 reports/
+device-names.txt

@@ -1,0 +1,9 @@
+# Custom device names for render-html.py.
+# Copy to device-names.txt (which git ignores) and edit.
+#
+# One device per line: a MAC or IP address, then the name.
+# MACs are preferred since IPs can change; use an IP for devices with a
+# randomized MAC. Case does not matter and '-' works in place of ':'.
+
+aa:bb:cc:dd:ee:ff  Living room TV
+192.168.1.50       Printer (office)

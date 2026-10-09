@@ -109,7 +109,7 @@ Stop it with Ctrl+C. This is a stand-in until the scan runs from cron.
 ### `render-html.py` — HTML page
 
 ```sh
-./render-html.py <report.json> [--refresh SECONDS] > lan-devices.html
+./render-html.py <report.json> [--refresh SECONDS] [--names FILE] > lan-devices.html
 ```
 
 Renders a single report or a merged inventory as one self-contained HTML file
@@ -117,6 +117,12 @@ Renders a single report or a merged inventory as one self-contained HTML file
 IP, vendor and names, MAC, open ports (with IoT hints), OS guess, latency and,
 for merged input, how often and when the device was last seen. Devices missing
 from the latest scan are greyed out.
+
+To give devices your own names, copy `device-names.example.txt` to
+`device-names.txt` and add one line per device: a MAC or IP address, then the
+name. The name is shown in bold above the vendor. `render-html.py` (and so
+`lan-watch.sh`) picks the file up automatically; `--names` points to another
+one. `device-names.txt` is git-ignored since it lists your MACs.
 
 ## Typical use
 
