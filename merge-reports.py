@@ -29,22 +29,11 @@ def load(paths):
     return sorted(reports)  # oldest first, so newer values overwrite
 
 
-def no_mac_key(d):
-    """Key for a device without a MAC. Older reports have none for this machine,
-    whose IP can change, so it is matched by hostname instead."""
-    return f'this machine {d.get("hostname")}' if d.get("role") == "this machine" else d["ip"]
-
-
 def merge(reports):
     devices = {}
     for date, path, data in reports:
         for d in data.get("devices", []):
-            key = d.get("mac") or no_mac_key(d)
-            # A device first seen without a MAC (this machine in older reports) gets it now.
-            old = devices.get(no_mac_key(d))
-            if key not in devices and old and old["mac"] is None:
-                devices[key] = devices.pop(no_mac_key(d))
-                devices[key]["mac"] = key
+            key = d.get("mac") or d["ip"]
             m = devices.setdefault(key, {
                 "ip": d["ip"], "mac": d.get("mac"), "ips_seen": [],
                 **{f: None for f in SIMPLE_FIELDS},
@@ -66,10 +55,8 @@ def merge(reports):
             for entry in d.get("mdns") or []:
                 if entry not in m["mdns"]:
                     m["mdns"].append(entry)
-            # Older reports have no deep_scan field; there, a port list means it was scanned.
             # "local" is this machine, whose ports are read from the kernel instead.
-            scanned = d.get("deep_scan", "ok" if d.get("ports") is not None else None) in ("ok", "local")
-            if scanned:
+            if d.get("deep_scan") in ("ok", "local"):
                 m["last_port_scan"] = date
                 for f in SCAN_FIELDS:
                     m[f] = d.get(f)

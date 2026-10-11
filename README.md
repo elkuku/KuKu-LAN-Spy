@@ -83,8 +83,7 @@ With no arguments, merges every `lan-report-*.json` in the current directory.
 Because sleepy devices answer some runs and not others, merging a few scans
 gives a more complete picture than any single one.
 
-- Devices are matched by MAC address (by IP when there is none). This
-  machine has no MAC in older reports, so it is matched there by hostname.
+- Devices are matched by MAC address (by IP when there is none).
 - For names, vendor and role, the newest report with a value wins.
 - Ports, OS, latency and distance are taken together from the newest report
   in which the device was actually port-scanned.
