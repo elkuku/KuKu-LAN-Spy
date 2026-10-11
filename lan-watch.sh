@@ -8,16 +8,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INTERVAL="${1:-300}"
 IFACE="${2:-}"
 REPORTS="$SCRIPT_DIR/reports"
+OUTPUT="$SCRIPT_DIR/output"
 MERGED="$REPORTS/lan-devices-merged.json"
-HTML="$REPORTS/lan-devices.html"
+HTML="$OUTPUT/lan-devices.html"
 
 if [[ $EUID -ne 0 ]]; then
     echo "Please run as root (lan-spy.sh needs it): sudo $0" >&2
     exit 1
 fi
 
-mkdir -p "$REPORTS"
-[[ -n "${SUDO_USER:-}" ]] && chown "$SUDO_USER": "$REPORTS"
+mkdir -p "$REPORTS" "$OUTPUT"
+[[ -n "${SUDO_USER:-}" ]] && chown "$SUDO_USER": "$REPORTS" "$OUTPUT"
 
 log() { printf '[lan-watch %s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 

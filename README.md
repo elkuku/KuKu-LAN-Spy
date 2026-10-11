@@ -97,11 +97,11 @@ sudo ./lan-watch.sh [interval-seconds] [interface]
 ```
 
 Runs `lan-spy.sh` every 300 seconds by default (start to start), then merges
-all reports and regenerates the HTML page. Everything goes into `reports/`:
+all reports and regenerates the HTML page:
 
 - `reports/lan-report-<timestamp>.json` (plus `-raw/` folders)
 - `reports/lan-devices-merged.json`
-- `reports/lan-devices.html`, which reloads itself every 60 seconds
+- `output/lan-devices.html`, which reloads itself every 60 seconds
 
 Stop it with Ctrl+C. This is a stand-in until the scan runs from cron.
 
@@ -143,7 +143,7 @@ lists your MACs.
 
 ```sh
 sudo ./lan-watch.sh        # scan every 5 minutes, Ctrl+C to stop
-xdg-open reports/lan-devices.html
+xdg-open output/lan-devices.html
 ```
 
 Or by hand:
