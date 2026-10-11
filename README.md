@@ -118,10 +118,24 @@ IP, vendor and names, MAC, open ports (with IoT hints), OS guess, latency and,
 for merged input, how often and when the device was last seen. Devices missing
 from the latest scan are greyed out.
 
+Each row shows one line; click it (or press Enter) to expand the details:
+hostnames and mDNS services, filtered ports, OS notes and when the device was
+last seen. "Expand all" opens every row, and open rows stay open across the
+page's auto-refresh.
+
 To give devices your own names, copy `device-names.example.txt` to
 `device-names.txt` and add one line per device: a MAC or IP address, then the
 name. Named rows get a blue edge with the name above the vendor; online
 devices without a name get a yellow edge, so you can see which still need one.
+
+Each device also gets an icon (router, camera, phone, TV, smart plug, ...),
+guessed from the strongest signal available: the gateway and this machine,
+then open ports and mDNS services (RTSP means a camera, Google Cast a TV,
+IPP a printer), then words in the custom name (`Cam ...`, `Pixel ...`,
+`Luz ...`), then weaker hints such as a Tuya vendor or a randomized MAC. If
+the guess is wrong, set the type in brackets before the name, e.g.
+`aa:bb:cc:dd:ee:ff [camera] Front door`; `device-names.example.txt` lists the
+types.
 `render-html.py` (and so `lan-watch.sh`) picks the file up automatically;
 `--names` points to another one. `device-names.txt` is git-ignored since it
 lists your MACs.
