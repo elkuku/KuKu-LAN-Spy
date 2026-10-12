@@ -327,20 +327,20 @@ enum DeviceType: string
     }
 
     /** Guess the type from the scan data and the custom name, strongest signal first. */
-    public static function guess(Device $d, ?string $name): self
+    public static function guess(Device $device, ?string $name): self
     {
-        if ($d->role === 'gateway') {
+        if ($device->role === 'gateway') {
             return self::Router;
         }
-        if ($d->role === 'this machine') {
+        if ($device->role === 'this machine') {
             return self::Computer;
         }
-        $openPorts = $d->openPorts();
-        $isOpen = fn(int ...$numbers): bool => (bool) array_filter($openPorts, fn(Port $p) => in_array($p->port, $numbers, true));
+        $openPorts = $device->openPorts();
+        $isOpen = fn(int ...$numbers): bool => (bool) array_filter($openPorts, fn(Port $port) => in_array($port->port, $numbers, true));
         // avahi-browse may report "_ipp._tcp" or its readable name "Internet Printer", so match loosely.
-        $mdns = mb_strtolower(implode(' ', array_map(fn(MdnsEntry $m) => $m->service ?? '', $d->mdns)));
-        $rtsp = array_filter($openPorts, fn(Port $p) => str_contains($p->service ?? '', 'rtsp'));
-        $osName = mb_strtolower($d->os->bestGuess ?? '');
+        $mdns = mb_strtolower(implode(' ', array_map(fn(MdnsEntry $entry) => $entry->service ?? '', $device->mdns)));
+        $rtsp = array_filter($openPorts, fn(Port $port) => str_contains($port->service ?? '', 'rtsp'));
+        $osName = mb_strtolower($device->os->bestGuess ?? '');
         $fromName = $name !== null ? self::fromName($name) : null;
 
         return match (true) {
@@ -349,12 +349,12 @@ enum DeviceType: string
             $isOpen(631, 9100) || contains_any($mdns, '_ipp', 'printer', 'pdl-datastream') => self::Printer,
             $fromName !== null => $fromName,
             contains_any($mdns, 'raop', 'airtunes', 'spotify', 'sonos') => self::Speaker,
-            $isOpen(6668, 9999) || contains_any(mb_strtolower($d->vendor ?? ''), 'tuya', 'espressif', 'shelly', 'sonoff')
+            $isOpen(6668, 9999) || contains_any(mb_strtolower($device->vendor ?? ''), 'tuya', 'espressif', 'shelly', 'sonoff')
                 => self::Plug,
             $isOpen(53) => self::Wifi,
             str_contains($osName, 'android') || in_array('ios', preg_split('/\s+/u', $osName), true) => self::Phone,
             contains_any($osName, 'windows', 'macos', 'mac os') => self::Computer,
-            $d->macRandomized => self::Phone,
+            $device->macRandomized => self::Phone,
             default => self::Unknown,
         };
     }
@@ -371,10 +371,10 @@ final class Port
     ) {
     }
 
-    public static function fromArray(array $p): self
+    public static function fromArray(array $port): self
     {
-        return new self((int) $p['port'], str_or_null($p['state'] ?? null), str_or_null($p['service'] ?? null),
-            str_or_null($p['version'] ?? null), str_or_null($p['hint'] ?? null));
+        return new self((int) $port['port'], str_or_null($port['state'] ?? null), str_or_null($port['service'] ?? null),
+            str_or_null($port['version'] ?? null), str_or_null($port['hint'] ?? null));
     }
 
     public function isOpen(): bool
@@ -389,9 +389,9 @@ final class MdnsEntry
     {
     }
 
-    public static function fromArray(array $m): self
+    public static function fromArray(array $entry): self
     {
-        return new self(str_or_null($m['hostname'] ?? null), str_or_null($m['service'] ?? null));
+        return new self(str_or_null($entry['hostname'] ?? null), str_or_null($entry['service'] ?? null));
     }
 }
 
@@ -438,44 +438,44 @@ final class Device
     ) {
     }
 
-    public static function fromArray(array $d): self
+    public static function fromArray(array $device): self
     {
         return new self(
-            ip: $d['ip'],
-            mac: str_or_null($d['mac'] ?? null),
-            macRandomized: !empty($d['mac_locally_administered']),
-            vendor: str_or_null($d['vendor'] ?? null),
-            hostname: str_or_null($d['hostname'] ?? null),
-            netbios: str_or_null($d['netbios'] ?? null),
-            role: str_or_null($d['role'] ?? null),
-            mdns: array_map(MdnsEntry::fromArray(...), $d['mdns'] ?? []),
-            ports: isset($d['ports']) ? array_map(Port::fromArray(...), $d['ports']) : null,
-            portsNotShown: str_or_null($d['ports_not_shown'] ?? null),
-            os: OsGuess::fromArray($d['os'] ?? null),
-            latencyMs: $d['latency_ms'] ?? null,
-            timesSeen: $d['times_seen'] ?? 0,
-            lastSeen: str_or_null($d['last_seen'] ?? null),
-            deepScan: str_or_null($d['deep_scan'] ?? null),
+            ip: $device['ip'],
+            mac: str_or_null($device['mac'] ?? null),
+            macRandomized: !empty($device['mac_locally_administered']),
+            vendor: str_or_null($device['vendor'] ?? null),
+            hostname: str_or_null($device['hostname'] ?? null),
+            netbios: str_or_null($device['netbios'] ?? null),
+            role: str_or_null($device['role'] ?? null),
+            mdns: array_map(MdnsEntry::fromArray(...), $device['mdns'] ?? []),
+            ports: isset($device['ports']) ? array_map(Port::fromArray(...), $device['ports']) : null,
+            portsNotShown: str_or_null($device['ports_not_shown'] ?? null),
+            os: OsGuess::fromArray($device['os'] ?? null),
+            latencyMs: $device['latency_ms'] ?? null,
+            timesSeen: $device['times_seen'] ?? 0,
+            lastSeen: str_or_null($device['last_seen'] ?? null),
+            deepScan: str_or_null($device['deep_scan'] ?? null),
         );
     }
 
     /** @return list<Port> */
     public function openPorts(): array
     {
-        return array_values(array_filter($this->ports ?? [], fn(Port $p) => $p->isOpen()));
+        return array_values(array_filter($this->ports ?? [], fn(Port $port) => $port->isOpen()));
     }
 
     /** Hostname, NetBIOS and mDNS names, without duplicates. @return list<string> */
     public function names(): array
     {
-        $names = [$this->hostname, $this->netbios, ...array_map(fn(MdnsEntry $m) => $m->hostname, $this->mdns)];
-        return array_values(array_unique(array_filter($names, fn(?string $n) => $n !== null)));
+        $names = [$this->hostname, $this->netbios, ...array_map(fn(MdnsEntry $entry) => $entry->hostname, $this->mdns)];
+        return array_values(array_unique(array_filter($names, fn(?string $name) => $name !== null)));
     }
 
     /** Announced mDNS services, sorted. @return list<string> */
     public function mdnsServices(): array
     {
-        $services = array_unique(array_filter(array_map(fn(MdnsEntry $m) => $m->service, $this->mdns), fn(?string $s) => $s !== null));
+        $services = array_unique(array_filter(array_map(fn(MdnsEntry $entry) => $entry->service, $this->mdns), fn(?string $value) => $value !== null));
         sort($services, SORT_STRING);
         return $services;
     }
@@ -498,7 +498,7 @@ final class Report
     public static function fromArray(array $data): self
     {
         $devices = array_map(Device::fromArray(...), $data['devices']);
-        usort($devices, fn(Device $a, Device $b) => ip_cmp($a->ip, $b->ip));
+        usort($devices, fn(Device $left, Device $right) => ip_cmp($left->ip, $right->ip));
         if (!array_key_exists('merged_from', $data)) {
             $scan = $data['scan'];
             return new self($devices, false, $scan['date'], 1, $scan['network'] ?? null, $scan['gateway'] ?? null);
@@ -508,14 +508,14 @@ final class Report
             $data['network'] ?? null, $data['gateway'] ?? null);
     }
 
-    public function isOnline(Device $d): bool
+    public function isOnline(Device $device): bool
     {
-        return !$this->merged || $d->lastSeen === $this->latest;
+        return !$this->merged || $device->lastSeen === $this->latest;
     }
 
     public function openPortCount(): int
     {
-        return array_sum(array_map(fn(Device $d) => count($d->openPorts()), $this->devices));
+        return array_sum(array_map(fn(Device $device) => count($device->openPorts()), $this->devices));
     }
 }
 
@@ -563,9 +563,9 @@ final class DeviceNames
         return new self($byAddress);
     }
 
-    public function lookup(Device $d): CustomName
+    public function lookup(Device $device): CustomName
     {
-        foreach ([$d->mac, $d->ip] as $address) {
+        foreach ([$device->mac, $device->ip] as $address) {
             if ($address !== null && isset($this->byAddress[mb_strtolower($address)])) {
                 return $this->byAddress[mb_strtolower($address)];
             }
@@ -592,11 +592,11 @@ final class Page
         $report = $this->report;
         $rows = [];
         $types = [];
-        foreach ($report->devices as $d) {
-            $custom = $this->names->lookup($d);
-            $type = $custom->type ?? DeviceType::guess($d, $custom->name);
+        foreach ($report->devices as $device) {
+            $custom = $this->names->lookup($device);
+            $type = $custom->type ?? DeviceType::guess($device, $custom->name);
             $types[] = $type->value;
-            $rows[] = $this->row($d, $custom, $type);
+            $rows[] = $this->row($device, $custom, $type);
         }
         $rows = implode("\n", $rows);
 
@@ -618,7 +618,7 @@ final class Page
             $stats[] = [$report->scans, 'scans merged'];
         }
         $statsHtml = implode('', array_map(
-            fn(array $s) => '<div class="stat"><b>' . $s[0] . '</b><span>' . esc($s[1]) . '</span></div>',
+            fn(array $stat) => '<div class="stat"><b>' . $stat[0] . '</b><span>' . esc($stat[1]) . '</span></div>',
             $stats,
         ));
 
@@ -680,27 +680,27 @@ final class Page
             HTML;
     }
 
-    private function row(Device $d, CustomName $custom, DeviceType $type): string
+    private function row(Device $device, CustomName $custom, DeviceType $type): string
     {
-        $online = $this->report->isOnline($d);
-        $who = esc($d->vendor ?? ($d->macRandomized ? 'Private MAC' : 'Unknown vendor'));
-        $extra = array_map(esc(...), $d->names());
+        $online = $this->report->isOnline($device);
+        $who = esc($device->vendor ?? ($device->macRandomized ? 'Private MAC' : 'Unknown vendor'));
+        $extra = array_map(esc(...), $device->names());
         if ($custom->name !== null) {
             array_unshift($extra, $who);
             $who = '<span class="name">' . esc($custom->name) . '</span>';
         }
-        if ($d->role !== null) {
-            array_unshift($extra, '<b>' . esc($d->role) . '</b>');
+        if ($device->role !== null) {
+            array_unshift($extra, '<b>' . esc($device->role) . '</b>');
         }
-        if ($services = $d->mdnsServices()) {
+        if ($services = $device->mdnsServices()) {
             $extra[] = 'mDNS: ' . esc(implode(', ', $services));
         }
 
-        $mac = esc($d->mac ?? '—');
-        if ($d->mac !== null) {
-            $mac .= self::copyButton($d->mac, 'Copy MAC address');
+        $mac = esc($device->mac ?? '—');
+        if ($device->mac !== null) {
+            $mac .= self::copyButton($device->mac, 'Copy MAC address');
         }
-        if ($d->macRandomized) {
+        if ($device->macRandomized) {
             $mac .= '<div class="muted more">randomized</div>';
         }
 
@@ -710,19 +710,19 @@ final class Page
             $online ? '' : 'offline',
         ]));
 
-        $latency = $d->latencyMs !== null ? sprintf('%g ms', $d->latencyMs) : '—';
+        $latency = $device->latencyMs !== null ? sprintf('%g ms', $device->latencyMs) : '—';
         $seen = $this->report->merged
-            ? "{$d->timesSeen}/{$this->report->scans}" . '<div class="muted more">last ' . esc(fmt_time($d->lastSeen)) . '</div>'
-            : esc($d->deepScan);
+            ? "{$device->timesSeen}/{$this->report->scans}" . '<div class="muted more">last ' . esc(fmt_time($device->lastSeen)) . '</div>'
+            : esc($device->deepScan);
 
-        $key = esc($d->mac ?? $d->ip);
-        $macAttr = esc($d->mac);
+        $key = esc($device->mac ?? $device->ip);
+        $macAttr = esc($device->mac);
         $up = $online ? ' up' : '';
-        $ip = esc($d->ip);
+        $ip = esc($device->ip);
         $icon = self::iconHtml($type);
         $extraHtml = implode('<br>', $extra);
-        $ports = self::portsHtml($d);
-        $os = self::osHtml($d);
+        $ports = self::portsHtml($device);
+        $os = self::osHtml($device);
         return <<<HTML
             <tr class="$rowClass" data-key="$key" data-type="{$type->value}" data-mac="$macAttr" tabindex="0" aria-expanded="false">
             <td class="mono"><span class="chev">›</span><span class="dot$up"></span>$ip</td>
@@ -736,47 +736,47 @@ final class Page
             HTML;
     }
 
-    private static function portsHtml(Device $d): string
+    private static function portsHtml(Device $device): string
     {
-        if ($d->ports === null) {
+        if ($device->ports === null) {
             return '<span class="muted">not scanned</span>';
         }
         $chips = [];
-        foreach ($d->ports as $p) {
-            $label = $p->port . '/' . ($p->service ?? '?');
-            $title = implode(' — ', array_filter([$p->version, $p->hint], fn(?string $s) => $s !== null));
+        foreach ($device->ports as $port) {
+            $label = $port->port . '/' . ($port->service ?? '?');
+            $title = implode(' — ', array_filter([$port->version, $port->hint], fn(?string $value) => $value !== null));
             $class = 'chip';
-            if (!$p->isOpen()) {
+            if (!$port->isOpen()) {
                 $class .= ' filtered more';
-                $label .= ' (' . ($p->state ?? 'None') . ')';
-            } elseif ($p->hint !== null) {
+                $label .= ' (' . ($port->state ?? 'None') . ')';
+            } elseif ($port->hint !== null) {
                 $class .= ' hint';
-                $label = "{$p->port} {$p->hint}";
+                $label = "{$port->port} {$port->hint}";
             }
             $chips[] = '<span class="' . $class . '" title="' . esc($title) . '">' . esc($label) . '</span>';
         }
-        if ($d->portsNotShown !== null) {
-            $chips[] = '<div class="muted more">' . esc($d->portsNotShown) . '</div>';
+        if ($device->portsNotShown !== null) {
+            $chips[] = '<div class="muted more">' . esc($device->portsNotShown) . '</div>';
         }
-        if (!$d->openPorts()) {
+        if (!$device->openPorts()) {
             array_unshift($chips, '<span class="muted less">none open</span>');
         }
         return implode('', $chips);
     }
 
-    private static function osHtml(Device $d): string
+    private static function osHtml(Device $device): string
     {
-        $name = $d->os->bestGuess ?? $d->os->details;
+        $name = $device->os->bestGuess ?? $device->os->details;
         if ($name === null) {
             return '<span class="muted">unknown</span>';
         }
         $out = esc($name);
-        if (!empty($d->os->accuracy)) {
-            $out .= ' <span class="muted">' . $d->os->accuracy . '%</span>';
+        if (!empty($device->os->accuracy)) {
+            $out .= ' <span class="muted">' . $device->os->accuracy . '%</span>';
         }
-        if ($d->os->source === 'local') {
+        if ($device->os->source === 'local') {
             $out .= '<div class="muted more">read locally</div>';
-        } elseif (!$d->openPorts()) {
+        } elseif (!$device->openPorts()) {
             $out .= '<div class="badge more">unreliable: no open ports</div>';
         }
         return $out;
@@ -837,9 +837,9 @@ final class Options
             if ($arg === '-h' || $arg === '--help') {
                 self::help();
             }
-            if (preg_match('/^--(refresh|names)(?:=(.*))?$/s', $arg, $m)) {
-                $value = $m[2] ?? array_shift($args) ?? throw self::error("--{$m[1]} needs a value");
-                if ($m[1] === 'names') {
+            if (preg_match('/^--(refresh|names)(?:=(.*))?$/s', $arg, $match)) {
+                $value = $match[2] ?? array_shift($args) ?? throw self::error("--{$match[1]} needs a value");
+                if ($match[1] === 'names') {
                     $namesPath = $value;
                 } elseif (preg_match('/^-?\d+$/', trim($value))) {
                     $refresh = (int) $value;
@@ -869,9 +869,9 @@ final class Options
     }
 }
 
-function esc(?string $s): string
+function esc(?string $value): string
 {
-    return strtr((string) $s, ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;', '"' => '&quot;', "'" => '&#x27;']);
+    return strtr((string) $value, ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;', '"' => '&quot;', "'" => '&#x27;']);
 }
 
 /** Treat '' like a missing value, as the scan data does. */
@@ -893,17 +893,17 @@ function contains_any(string $haystack, string ...$needles): bool
 /** Use the system timezone (PHP defaults to UTC) so "Generated" shows local time. */
 function use_local_timezone(): void
 {
-    $tz = getenv('TZ') ?: (preg_match('#zoneinfo/(.+)$#', (string) @readlink('/etc/localtime'), $m) ? $m[1] : '');
+    $tz = getenv('TZ') ?: (preg_match('#zoneinfo/(.+)$#', (string) @readlink('/etc/localtime'), $match) ? $match[1] : '');
     if (in_array($tz, timezone_identifiers_list(), true)) {
         date_default_timezone_set($tz);
     }
 }
 
-function ip_cmp(string $a, string $b): int
+function ip_cmp(string $left, string $right): int
 {
-    $a = inet_pton($a);
-    $b = inet_pton($b);
-    return [strlen($a), $a] <=> [strlen($b), $b];
+    $left = inet_pton($left);
+    $right = inet_pton($right);
+    return [strlen($left), $left] <=> [strlen($right), $right];
 }
 
 function fmt_time(?string $iso): string
@@ -927,8 +927,8 @@ function read_report(string $path): Report
     }
     try {
         return Report::fromArray(json_decode($raw, true, flags: JSON_THROW_ON_ERROR));
-    } catch (JsonException $e) {
-        throw new CliError("cannot parse $path: {$e->getMessage()}\n", 1);
+    } catch (JsonException $error) {
+        throw new CliError("cannot parse $path: {$error->getMessage()}\n", 1);
     }
 }
 
@@ -942,9 +942,9 @@ function main(array $argv): int
             throw new CliError("names file not found: {$options->namesPath}\n", 1);
         }
         $names = file_exists($options->namesPath) ? DeviceNames::load($options->namesPath) : DeviceNames::none();
-    } catch (CliError $e) {
-        fwrite(STDERR, $e->getMessage());
-        return $e->getCode();
+    } catch (CliError $error) {
+        fwrite(STDERR, $error->getMessage());
+        return $error->getCode();
     }
     echo (new Page($report, $names, $options->refresh))->render();
     return 0;
