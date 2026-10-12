@@ -13,14 +13,182 @@
 
 declare(strict_types=1);
 
-const SIMPLE_FIELDS = ['vendor', 'mac_locally_administered', 'hostname', 'netbios', 'role'];
-const SCAN_FIELDS = ['ports', 'ports_not_shown', 'os', 'network_distance', 'latency_ms'];
-
-function ip_cmp(string $a, string $b): int
+/** One lan-spy report as read from disk. */
+final class ReportFile
 {
-    $a = inet_pton($a);
-    $b = inet_pton($b);
-    return [strlen($a), $a] <=> [strlen($b), $b];
+    public function __construct(
+        public readonly string $path,
+        public readonly string $date,
+        public readonly array $data,
+    ) {
+    }
+
+    /** @throws RuntimeException|JsonException if the file cannot be read or parsed */
+    public static function load(string $path): self
+    {
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            throw new RuntimeException(error_get_last()['message'] ?? 'cannot read file');
+        }
+        $data = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
+        return new self($path, $data['scan']['date'] ?? throw new RuntimeException('no scan date'), $data);
+    }
+
+    /** @return list<array> */
+    public function devices(): array
+    {
+        return $this->data['devices'] ?? [];
+    }
+}
+
+/** A device across all reports; serializes to its entry in the merged inventory. */
+final class MergedDevice implements JsonSerializable
+{
+    // Copied from the newest report that has a value.
+    private const SIMPLE_FIELDS = [
+        'vendor' => 'vendor', 'mac_locally_administered' => 'macLocallyAdministered',
+        'hostname' => 'hostname', 'netbios' => 'netbios', 'role' => 'role',
+    ];
+    // Copied together from the newest report that port-scanned the device.
+    private const SCAN_FIELDS = [
+        'ports' => 'ports', 'ports_not_shown' => 'portsNotShown', 'os' => 'os',
+        'network_distance' => 'networkDistance', 'latency_ms' => 'latencyMs',
+    ];
+
+    public string $ip;
+    /** @var list<string> */
+    public array $ipsSeen = [];
+    public ?string $vendor = null;
+    public ?bool $macLocallyAdministered = null;
+    public ?string $hostname = null;
+    public ?string $netbios = null;
+    public ?string $role = null;
+    public string $lastSeen;
+    public int $timesSeen = 0;
+    /** @var list<string> */
+    public array $seenBy = [];
+    /** @var list<array> */
+    public array $mdns = [];
+    public ?string $lastPortScan = null;
+    public ?array $ports = null;
+    public ?string $portsNotShown = null;
+    public ?array $os = null;
+    public ?int $networkDistance = null;
+    public int|float|null $latencyMs = null;
+
+    public function __construct(public readonly ?string $mac, public readonly string $firstSeen)
+    {
+    }
+
+    /** Fold in the device as one report saw it; reports must come oldest first. */
+    public function add(array $device, string $date): void
+    {
+        $this->ip = $device['ip'];
+        self::addUnique($this->ipsSeen, $device['ip']);
+        $this->lastSeen = $date;
+        $this->timesSeen++;
+        foreach ($device['seen_by'] ?? [] as $source) {
+            self::addUnique($this->seenBy, $source);
+        }
+        foreach (self::SIMPLE_FIELDS as $key => $property) {
+            if (isset($device[$key])) {
+                $this->$property = $device[$key];
+            }
+        }
+        foreach ($device['mdns'] ?? [] as $entry) {
+            self::addUnique($this->mdns, $entry);
+        }
+        // "local" is this machine, whose ports are read from the kernel instead.
+        if (in_array($device['deep_scan'] ?? null, ['ok', 'local'], true)) {
+            $this->lastPortScan = $date;
+            foreach (self::SCAN_FIELDS as $key => $property) {
+                $this->$property = $device[$key] ?? null;
+            }
+        }
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'ip' => $this->ip, 'mac' => $this->mac, 'ips_seen' => $this->ipsSeen,
+            'vendor' => $this->vendor, 'mac_locally_administered' => $this->macLocallyAdministered,
+            'hostname' => $this->hostname, 'netbios' => $this->netbios, 'role' => $this->role,
+            'first_seen' => $this->firstSeen, 'last_seen' => $this->lastSeen, 'times_seen' => $this->timesSeen,
+            'seen_by' => $this->seenBy, 'mdns' => $this->mdns, 'last_port_scan' => $this->lastPortScan,
+            'ports' => $this->ports, 'ports_not_shown' => $this->portsNotShown, 'os' => $this->os,
+            'network_distance' => $this->networkDistance, 'latency_ms' => $this->latencyMs,
+        ];
+    }
+
+    private static function addUnique(array &$list, mixed $value): void
+    {
+        if (!in_array($value, $list, true)) {
+            $list[] = $value;
+        }
+    }
+}
+
+final class Inventory
+{
+    /** @var array<string, MergedDevice> keyed by MAC, or by IP when there is no MAC */
+    private array $devices = [];
+
+    /** @param list<ReportFile> $reports oldest first, so newer values overwrite */
+    public function __construct(private readonly array $reports)
+    {
+        foreach ($reports as $report) {
+            foreach ($report->devices() as $device) {
+                $mac = ($device['mac'] ?? '') ?: null;
+                // The prefix keeps PHP from turning numeric-looking keys into integers.
+                $key = 'k' . ($mac ?? $device['ip']);
+                ($this->devices[$key] ??= new MergedDevice($device['mac'] ?? null, $report->date))->add($device, $report->date);
+            }
+        }
+    }
+
+    public function toArray(): array
+    {
+        $newest = $this->reports[array_key_last($this->reports)]->data['scan'];
+        $devices = array_values($this->devices);
+        usort($devices, fn(MergedDevice $left, MergedDevice $right) => ip_cmp($left->ip, $right->ip));
+        return [
+            'merged_from' => array_map(
+                fn(ReportFile $report) => ['file' => $report->path, 'date' => $report->date, 'devices' => count($report->devices())],
+                $this->reports,
+            ),
+            'network' => $newest['network'] ?? null,
+            'gateway' => $newest['gateway'] ?? null,
+            'local_ip' => $newest['local_ip'] ?? null,
+            'devices' => $devices,
+        ];
+    }
+}
+
+/**
+ * Load the reports that can be read, oldest first; the others are skipped with a warning.
+ *
+ * @param list<string> $paths
+ * @return list<ReportFile>
+ */
+function load_reports(array $paths): array
+{
+    $reports = [];
+    foreach ($paths as $path) {
+        try {
+            $reports[] = ReportFile::load($path);
+        } catch (JsonException|RuntimeException $error) {
+            fwrite(STDERR, "skipping $path: {$error->getMessage()}\n");
+        }
+    }
+    usort($reports, fn(ReportFile $left, ReportFile $right) => [$left->date, $left->path] <=> [$right->date, $right->path]);
+    return $reports;
+}
+
+function ip_cmp(string $left, string $right): int
+{
+    $left = inet_pton($left);
+    $right = inet_pton($right);
+    return [strlen($left), $left] <=> [strlen($right), $right];
 }
 
 function json_out(mixed $data): void
@@ -28,92 +196,18 @@ function json_out(mixed $data): void
     $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
         | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
     // Two-space indent, like the reports have always had.
-    echo preg_replace_callback('/^(?: {4})+/m', fn($m) => str_repeat(' ', strlen($m[0]) / 2), $json), "\n";
+    echo preg_replace_callback('/^(?: {4})+/m', fn($indent) => str_repeat(' ', strlen($indent[0]) / 2), $json), "\n";
 }
 
-/** @return list<array{string, string, array}> [date, path, report], oldest first so newer values overwrite */
-function load(array $paths): array
+function main(array $argv): int
 {
-    $reports = [];
-    foreach ($paths as $path) {
-        try {
-            $raw = @file_get_contents($path);
-            if ($raw === false) {
-                throw new RuntimeException(error_get_last()['message'] ?? 'cannot read file');
-            }
-            $data = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
-        } catch (JsonException|RuntimeException $e) {
-            fwrite(STDERR, "skipping $path: {$e->getMessage()}\n");
-            continue;
-        }
-        $reports[] = [$data['scan']['date'], (string) $path, $data];
+    $reports = load_reports(array_slice($argv, 1) ?: glob('lan-report-*.json'));
+    if (!$reports) {
+        fwrite(STDERR, "no reports to merge\n");
+        return 1;
     }
-    usort($reports, fn($a, $b) => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
-    return $reports;
+    json_out((new Inventory($reports))->toArray());
+    return 0;
 }
 
-function merge(array $reports): array
-{
-    $devices = [];
-    foreach ($reports as [$date, , $data]) {
-        foreach ($data['devices'] ?? [] as $d) {
-            $key = 'k' . (($d['mac'] ?? '') ?: $d['ip']);
-            $m = &$devices[$key];
-            $m ??= [
-                'ip' => $d['ip'], 'mac' => $d['mac'] ?? null, 'ips_seen' => [],
-                ...array_fill_keys(SIMPLE_FIELDS, null),
-                'first_seen' => $date, 'last_seen' => $date, 'times_seen' => 0, 'seen_by' => [],
-                'mdns' => [], 'last_port_scan' => null,
-                ...array_fill_keys(SCAN_FIELDS, null),
-            ];
-            $m['ip'] = $d['ip'];
-            if (!in_array($d['ip'], $m['ips_seen'], true)) {
-                $m['ips_seen'][] = $d['ip'];
-            }
-            $m['last_seen'] = $date;
-            $m['times_seen']++;
-            foreach ($d['seen_by'] ?? [] as $src) {
-                if (!in_array($src, $m['seen_by'], true)) {
-                    $m['seen_by'][] = $src;
-                }
-            }
-            foreach (SIMPLE_FIELDS as $f) {
-                if (isset($d[$f])) {
-                    $m[$f] = $d[$f];
-                }
-            }
-            foreach ($d['mdns'] ?? [] as $entry) {
-                if (!in_array($entry, $m['mdns'], true)) {
-                    $m['mdns'][] = $entry;
-                }
-            }
-            // "local" is this machine, whose ports are read from the kernel instead.
-            if (in_array($d['deep_scan'] ?? null, ['ok', 'local'], true)) {
-                $m['last_port_scan'] = $date;
-                foreach (SCAN_FIELDS as $f) {
-                    $m[$f] = $d[$f] ?? null;
-                }
-            }
-            unset($m);
-        }
-    }
-    $devices = array_values($devices);
-    usort($devices, fn($a, $b) => ip_cmp($a['ip'], $b['ip']));
-    return $devices;
-}
-
-$paths = array_slice($argv, 1) ?: glob('lan-report-*.json');
-$reports = load($paths);
-if (!$reports) {
-    fwrite(STDERR, "no reports to merge\n");
-    exit(1);
-}
-$newest = end($reports)[2]['scan'];
-json_out([
-    'merged_from' => array_map(fn($r) => ['file' => $r[1], 'date' => $r[0], 'devices' => count($r[2]['devices'] ?? [])],
-        $reports),
-    'network' => $newest['network'] ?? null,
-    'gateway' => $newest['gateway'] ?? null,
-    'local_ip' => $newest['local_ip'] ?? null,
-    'devices' => merge($reports),
-]);
+exit(main($argv));
