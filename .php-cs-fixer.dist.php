@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // The templates are left out: their whitespace ends up in the HTML.
-$finder = (new PhpCsFixer\Finder())
+$finder = new PhpCsFixer\Finder()
     ->in(__DIR__ . '/src')
     ->append([
         __DIR__ . '/build-report.php',
@@ -13,13 +13,13 @@ $finder = (new PhpCsFixer\Finder())
         __FILE__,
     ]);
 
-return (new PhpCsFixer\Config())
+return new PhpCsFixer\Config()
     ->setRiskyAllowed(true)
     ->setRules([
         '@PER-CS3x0' => true,
         '@PER-CS3x0:risky' => true,
-        '@PHP8x1Migration' => true,
-        '@PHP8x1Migration:risky' => true,
+        '@PHP8x5Migration' => true,
+        '@PHP8x5Migration:risky' => true,
         'declare_strict_types' => true,
         'no_unused_imports' => true,
         'ordered_imports' => true,

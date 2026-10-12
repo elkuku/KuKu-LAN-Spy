@@ -10,38 +10,39 @@ use JsonSerializable;
 final class MergedDevice implements JsonSerializable
 {
     // Copied from the newest report that has a value.
-    private const SIMPLE_FIELDS = [
+    private const array SIMPLE_FIELDS = [
         'vendor' => 'vendor', 'mac_locally_administered' => 'macLocallyAdministered',
         'hostname' => 'hostname', 'netbios' => 'netbios', 'role' => 'role',
     ];
     // Copied together from the newest report that port-scanned the device.
-    private const SCAN_FIELDS = [
+    private const array SCAN_FIELDS = [
         'ports' => 'ports', 'ports_not_shown' => 'portsNotShown', 'os' => 'os',
         'network_distance' => 'networkDistance', 'latency_ms' => 'latencyMs',
     ];
 
-    public string $ip;
+    // Read from outside, set only by add().
+    public private(set) string $ip;
     /** @var list<string> */
-    public array $ipsSeen = [];
-    public ?string $vendor = null;
-    public ?bool $macLocallyAdministered = null;
-    public ?string $hostname = null;
-    public ?string $netbios = null;
-    public ?string $role = null;
-    public string $lastSeen;
-    public int $timesSeen = 0;
+    public private(set) array $ipsSeen = [];
+    public private(set) ?string $vendor = null;
+    public private(set) ?bool $macLocallyAdministered = null;
+    public private(set) ?string $hostname = null;
+    public private(set) ?string $netbios = null;
+    public private(set) ?string $role = null;
+    public private(set) string $lastSeen;
+    public private(set) int $timesSeen = 0;
     /** @var list<string> */
-    public array $seenBy = [];
+    public private(set) array $seenBy = [];
     /** @var list<array> */
-    public array $mdns = [];
-    public ?string $lastPortScan = null;
+    public private(set) array $mdns = [];
+    public private(set) ?string $lastPortScan = null;
     /** @var ?list<array<string, mixed>> */
-    public ?array $ports = null;
-    public ?string $portsNotShown = null;
+    public private(set) ?array $ports = null;
+    public private(set) ?string $portsNotShown = null;
     /** @var ?array<string, mixed> */
-    public ?array $os = null;
-    public ?int $networkDistance = null;
-    public int|float|null $latencyMs = null;
+    public private(set) ?array $os = null;
+    public private(set) ?int $networkDistance = null;
+    public private(set) int|float|null $latencyMs = null;
 
     public function __construct(public readonly ?string $mac, public readonly string $firstSeen) {}
 

@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace LanSpy\Render;
 
 /** The HTML page for a report: one row per device, plus stats and filters. */
-final class Page
+final readonly class Page
 {
     // Icon for the "All types" entry of the type filter.
-    private const ALL_TYPES_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
+    private const string ALL_TYPES_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
         . '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
 
     public function __construct(
-        private readonly Report $report,
-        private readonly DeviceNames $names,
-        private readonly int $refresh,
+        private Report $report,
+        private DeviceNames $names,
+        private int $refresh,
     ) {}
 
     public function render(): string

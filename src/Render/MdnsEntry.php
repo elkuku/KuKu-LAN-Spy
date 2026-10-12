@@ -7,9 +7,9 @@ namespace LanSpy\Render;
 use LanSpy\Util\Text;
 
 /** A service a device announces over mDNS. */
-final class MdnsEntry
+final readonly class MdnsEntry
 {
-    public function __construct(public readonly ?string $hostname, public readonly ?string $service) {}
+    public function __construct(public ?string $hostname, public ?string $service) {}
 
     /** @param array<string, mixed> $entry */
     public static function fromArray(array $entry): self

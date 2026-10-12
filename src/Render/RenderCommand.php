@@ -26,7 +26,7 @@ final class RenderCommand
             fwrite(STDERR, $error->getMessage());
             return $error->getCode();
         }
-        echo (new Page($report, $names, $options->refresh))->render();
+        echo new Page($report, $names, $options->refresh)->render();
         return 0;
     }
 

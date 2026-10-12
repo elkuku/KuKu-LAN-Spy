@@ -7,16 +7,16 @@ namespace LanSpy\Render;
 use LanSpy\Util\Ip;
 
 /** A single lan-spy report or the output of merge-reports.php. */
-final class Report
+final readonly class Report
 {
     /** @param list<Device> $devices sorted by IP */
     private function __construct(
-        public readonly array $devices,
-        public readonly bool $merged,
-        public readonly ?string $latest,
-        public readonly int $scans,
-        public readonly ?string $network,
-        public readonly ?string $gateway,
+        public array $devices,
+        public bool $merged,
+        public ?string $latest,
+        public int $scans,
+        public ?string $network,
+        public ?string $gateway,
     ) {}
 
     /** @param array<string, mixed> $data the decoded report or merged inventory */

@@ -28,7 +28,7 @@ final class Inventory
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        $newest = $this->reports[array_key_last($this->reports)]->data['scan'];
+        $newest = array_last($this->reports)->data['scan'];
         $devices = array_values($this->devices);
         usort($devices, fn(MergedDevice $left, MergedDevice $right): int => Ip::compare($left->ip, $right->ip));
         return [

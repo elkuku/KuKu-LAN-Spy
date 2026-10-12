@@ -19,7 +19,7 @@ final class MergeCommand
             fwrite(STDERR, "no reports to merge\n");
             return 1;
         }
-        Json::write((new Inventory($reports))->toArray());
+        Json::write(new Inventory($reports)->toArray());
         return 0;
     }
 

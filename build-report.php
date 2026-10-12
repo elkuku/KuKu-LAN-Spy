@@ -17,4 +17,4 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-exit((new LanSpy\Build\BuildCommand())->run($_SERVER['argv']));
+exit(new LanSpy\Build\BuildCommand()->run($_SERVER['argv']));

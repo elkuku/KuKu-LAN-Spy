@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace LanSpy\Build;
 
 /** nmap's list of MAC address prefixes and the vendors they belong to. */
-final class OuiDatabase
+final readonly class OuiDatabase
 {
-    private const FILE = '/usr/share/nmap/nmap-mac-prefixes';
+    private const string FILE = '/usr/share/nmap/nmap-mac-prefixes';
 
     /** @param array<string, string> $vendors MAC prefix (6 hex digits, upper case) => vendor */
-    private function __construct(private readonly array $vendors) {}
+    private function __construct(private array $vendors) {}
 
     /** An empty database if nmap's list is not installed. */
     public static function load(): self

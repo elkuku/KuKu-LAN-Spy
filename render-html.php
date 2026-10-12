@@ -18,4 +18,4 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-exit((new LanSpy\Render\RenderCommand())->run($_SERVER['argv']));
+exit(new LanSpy\Render\RenderCommand()->run($_SERVER['argv']));

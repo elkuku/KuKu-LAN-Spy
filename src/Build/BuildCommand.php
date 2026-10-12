@@ -10,7 +10,7 @@ use LanSpy\Util\Timezone;
 /** build-report.php: turn the files lan-spy.sh collected into the JSON report. */
 final class BuildCommand
 {
-    private const USAGE = "Usage: build-report.php <scan-dir> <interface> <cidr> <gateway> <hostname> > report.json\n";
+    private const string USAGE = "Usage: build-report.php <scan-dir> <interface> <cidr> <gateway> <hostname> > report.json\n";
 
     /** @param list<string> $argv */
     public function run(array $argv): int

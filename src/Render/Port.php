@@ -7,14 +7,14 @@ namespace LanSpy\Render;
 use LanSpy\Util\Text;
 
 /** A port of a device as the report lists it. */
-final class Port
+final readonly class Port
 {
     public function __construct(
-        public readonly int $port,
-        public readonly ?string $state,
-        public readonly ?string $service,
-        public readonly ?string $version,
-        public readonly ?string $hint,
+        public int $port,
+        public ?string $state,
+        public ?string $service,
+        public ?string $version,
+        public ?string $hint,
     ) {}
 
     /** @param array<string, mixed> $port */

@@ -20,11 +20,6 @@ final class Text
 
     public static function containsAny(string $haystack, string ...$needles): bool
     {
-        foreach ($needles as $needle) {
-            if (str_contains($haystack, $needle)) {
-                return true;
-            }
-        }
-        return false;
+        return array_any($needles, fn(string $needle): bool => str_contains($haystack, $needle));
     }
 }

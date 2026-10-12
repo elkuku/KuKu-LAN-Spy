@@ -8,10 +8,10 @@ use LanSpy\Util\CliError;
 use LanSpy\Util\Text;
 
 /** Custom device names: one '<mac-or-ip> [type] <name>' per line, '#' lines are comments. */
-final class DeviceNames
+final readonly class DeviceNames
 {
     /** @param array<string, CustomName> $byAddress keyed by lowercase MAC (with colons) or IP */
-    private function __construct(private readonly array $byAddress) {}
+    private function __construct(private array $byAddress) {}
 
     public static function none(): self
     {

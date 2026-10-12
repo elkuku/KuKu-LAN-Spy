@@ -7,17 +7,17 @@ namespace LanSpy\Render;
 use LanSpy\Util\CliError;
 
 /** The command line of render-html.php. */
-final class Options
+final readonly class Options
 {
     // device-names.txt in the project folder, next to the scripts.
-    public const DEFAULT_NAMES = __DIR__ . '/../../device-names.txt';
+    public const string DEFAULT_NAMES = __DIR__ . '/../../device-names.txt';
 
-    private const USAGE = "usage: render-html.php <report.json> [--refresh SECONDS] [--names FILE]\n";
+    private const string USAGE = "usage: render-html.php <report.json> [--refresh SECONDS] [--names FILE]\n";
 
     private function __construct(
-        public readonly string $report,
-        public readonly int $refresh,
-        public readonly string $namesPath,
+        public string $report,
+        public int $refresh,
+        public string $namesPath,
     ) {}
 
     /**

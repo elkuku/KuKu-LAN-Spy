@@ -102,12 +102,7 @@ enum DeviceType: string
     public static function fromName(string $name): ?self
     {
         $words = preg_split('/\s+/u', mb_strtolower(str_replace(['-', '_'], ' ', $name)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        foreach (self::NAME_ORDER as $type) {
-            if (array_intersect($words, $type->keywords())) {
-                return $type;
-            }
-        }
-        return null;
+        return array_find(self::NAME_ORDER, fn(self $type): bool => array_intersect($words, $type->keywords()) !== []);
     }
 
     /** Guess the type from the scan data and the custom name, strongest signal first. */
@@ -120,10 +115,10 @@ enum DeviceType: string
             return self::Computer;
         }
         $openPorts = $device->openPorts();
-        $isOpen = fn(int ...$numbers): bool => (bool) array_filter($openPorts, fn(Port $port): bool => in_array($port->port, $numbers, true));
+        $isOpen = fn(int ...$numbers): bool => array_any($openPorts, fn(Port $port): bool => in_array($port->port, $numbers, true));
         // avahi-browse may report "_ipp._tcp" or its readable name "Internet Printer", so match loosely.
         $mdns = mb_strtolower(implode(' ', array_map(fn(MdnsEntry $entry): string => $entry->service ?? '', $device->mdns)));
-        $rtsp = array_filter($openPorts, fn(Port $port): bool => str_contains($port->service ?? '', 'rtsp'));
+        $rtsp = array_any($openPorts, fn(Port $port): bool => str_contains($port->service ?? '', 'rtsp'));
         $osName = mb_strtolower($device->os->bestGuess ?? '');
         $fromName = $name !== null ? self::fromName($name) : null;
 

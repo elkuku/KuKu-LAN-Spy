@@ -8,22 +8,22 @@ use JsonSerializable;
 use LanSpy\Util\Text;
 use SimpleXMLElement;
 
-final class Port implements JsonSerializable
+final readonly class Port implements JsonSerializable
 {
     // nmap names these after unrelated services; on a home LAN they usually mean this.
-    private const IOT_HINTS = [
+    private const array IOT_HINTS = [
         6668 => 'Tuya smart device local API',
         8009 => 'Google Cast',
         9999 => 'TP-Link Kasa smart device API',
     ];
 
     public function __construct(
-        public readonly int $port,
-        public readonly ?string $proto,
-        public readonly ?string $state,
-        public readonly ?string $service,
-        public readonly ?string $version,
-        public readonly ?string $hint = null,
+        public int $port,
+        public ?string $proto,
+        public ?string $state,
+        public ?string $service,
+        public ?string $version,
+        public ?string $hint = null,
     ) {}
 
     public static function fromNmap(SimpleXMLElement $element): self

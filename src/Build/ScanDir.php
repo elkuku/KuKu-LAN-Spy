@@ -7,9 +7,9 @@ namespace LanSpy\Build;
 use SimpleXMLElement;
 
 /** The folder of intermediate files lan-spy.sh writes; missing files read as empty. */
-final class ScanDir
+final readonly class ScanDir
 {
-    public function __construct(private readonly string $path) {}
+    public function __construct(private string $path) {}
 
     /** @return list<string> the non-empty lines */
     public function lines(string $name): array

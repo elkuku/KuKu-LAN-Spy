@@ -9,7 +9,7 @@ use RuntimeException;
 /** Renders the PHP templates in the templates/ folder of the project. */
 final class Template
 {
-    private const DIR = __DIR__ . '/../../templates';
+    private const string DIR = __DIR__ . '/../../templates';
 
     /** @param array<string, mixed> $vars the variables the template sees */
     public static function render(string $name, array $vars = []): string

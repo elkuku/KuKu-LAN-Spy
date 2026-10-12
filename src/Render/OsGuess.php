@@ -7,13 +7,13 @@ namespace LanSpy\Render;
 use LanSpy\Util\Text;
 
 /** nmap's OS guess for a device, or the OS read locally for this machine. */
-final class OsGuess
+final readonly class OsGuess
 {
     public function __construct(
-        public readonly ?string $bestGuess,
-        public readonly ?string $details,
-        public readonly int|float|null $accuracy,
-        public readonly ?string $source,
+        public ?string $bestGuess,
+        public ?string $details,
+        public int|float|null $accuracy,
+        public ?string $source,
     ) {}
 
     /** @param ?array<string, mixed> $os */

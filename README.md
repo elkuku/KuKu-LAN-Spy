@@ -8,7 +8,7 @@ and as an HTML page.
 - `arp-scan`, `nmap`
 - `avahi-browse` (avahi) for mDNS/Bonjour discovery
 - `nmblookup` (smbclient) for NetBIOS names
-- PHP 8.1 or newer (CLI, with the bundled SimpleXML, mbstring and ctype extensions)
+- PHP 8.5 or newer (CLI, with the bundled SimpleXML, mbstring and ctype extensions)
 - [Composer](https://getcomposer.org/)
 
 On Arch Linux: `sudo pacman -S arp-scan nmap avahi smbclient php composer`

@@ -7,28 +7,28 @@ namespace LanSpy\Render;
 use LanSpy\Util\Text;
 
 /** One device from a single report or a merged inventory; fields missing from the input are null. */
-final class Device
+final readonly class Device
 {
     /**
      * @param list<MdnsEntry> $mdns
      * @param ?list<Port> $ports null if the device was not port scanned
      */
     public function __construct(
-        public readonly string $ip,
-        public readonly ?string $mac,
-        public readonly bool $macRandomized,
-        public readonly ?string $vendor,
-        public readonly ?string $hostname,
-        public readonly ?string $netbios,
-        public readonly ?string $role,
-        public readonly array $mdns,
-        public readonly ?array $ports,
-        public readonly ?string $portsNotShown,
-        public readonly OsGuess $os,
-        public readonly int|float|null $latencyMs,
-        public readonly int $timesSeen,
-        public readonly ?string $lastSeen,
-        public readonly ?string $deepScan,
+        public string $ip,
+        public ?string $mac,
+        public bool $macRandomized,
+        public ?string $vendor,
+        public ?string $hostname,
+        public ?string $netbios,
+        public ?string $role,
+        public array $mdns,
+        public ?array $ports,
+        public ?string $portsNotShown,
+        public OsGuess $os,
+        public int|float|null $latencyMs,
+        public int $timesSeen,
+        public ?string $lastSeen,
+        public ?string $deepScan,
     ) {}
 
     /** @param array<string, mixed> $device */

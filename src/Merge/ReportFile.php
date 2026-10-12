@@ -8,13 +8,13 @@ use JsonException;
 use RuntimeException;
 
 /** One lan-spy report as read from disk. */
-final class ReportFile
+final readonly class ReportFile
 {
     /** @param array<string, mixed> $data the decoded report */
     public function __construct(
-        public readonly string $path,
-        public readonly string $date,
-        public readonly array $data,
+        public string $path,
+        public string $date,
+        public array $data,
     ) {}
 
     /** @throws RuntimeException|JsonException if the file cannot be read or parsed */

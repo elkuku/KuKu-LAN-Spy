@@ -22,7 +22,7 @@ final class Html
             return '';
         }
         try {
-            return (new DateTimeImmutable($iso))->format('Y-m-d H:i');
+            return new DateTimeImmutable($iso)->format('Y-m-d H:i');
         } catch (Exception) {
             return $iso;
         }

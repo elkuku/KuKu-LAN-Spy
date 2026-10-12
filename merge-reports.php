@@ -16,4 +16,4 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-exit((new LanSpy\Merge\MergeCommand())->run($_SERVER['argv']));
+exit(new LanSpy\Merge\MergeCommand()->run($_SERVER['argv']));
