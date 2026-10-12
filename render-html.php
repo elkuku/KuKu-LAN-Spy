@@ -5,6 +5,8 @@
  *
  * Usage: ./render-html.php <report.json> [--refresh SECONDS] [--names FILE] > lan-devices.html
  *
+ * Pass - as the report to read it from stdin.
+ *
  * Accepts the output of lan-spy.sh (single scan) or merge-reports.php (merged).
  * Custom device names are read from device-names.txt next to this script, if it
  * exists (see device-names.example.txt).
@@ -220,61 +222,672 @@ document.querySelectorAll(".copy").forEach(b => b.addEventListener("click", e =>
 }));
 JS;
 
-// Inline SVG bodies (24x24 viewBox, stroked) and a label per device type.
-const ICONS = [
-    'router' => ['Router', '<rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 17.5h.01M10 17.5h.01M15 14V9"/>'
-                           . '<path d="M11.5 6.5a5 5 0 0 1 7 0M9 4a8.5 8.5 0 0 1 12 0"/>'],
-    'wifi' => ['Access point / extender', '<path d="M2 9a14 14 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 20h.01"/>'],
-    'computer' => ['Computer', '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>'],
-    'laptop' => ['Laptop', '<rect x="4" y="4" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>'],
-    'server' => ['Server / NAS', '<rect x="2" y="3" width="20" height="8" rx="2"/>'
-                                 . '<rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/>'],
-    'phone' => ['Phone', '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>'],
-    'tablet' => ['Tablet', '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/>'],
-    'tv' => ['TV / streaming', '<rect x="2" y="7" width="20" height="13" rx="2"/><path d="m7 2 5 5 5-5"/>'],
-    'camera' => ['Camera', '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/>'
-                           . '<circle cx="12" cy="13" r="3"/>'],
-    'speaker' => ['Speaker', '<rect x="5" y="2" width="14" height="20" rx="2"/>'
-                             . '<circle cx="12" cy="14" r="4"/><path d="M12 6h.01"/>'],
-    'printer' => ['Printer', '<path d="M6 9V2h12v7"/><rect x="2" y="9" width="20" height="9" rx="2"/>'
-                             . '<rect x="6" y="14" width="12" height="8"/>'],
-    'bulb' => ['Light', '<path d="M9 18h6M10 22h4"/>'
-                        . '<path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V18h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>'],
-    'plug' => ['Smart plug / switch', '<path d="M9 2v6M15 2v6M12 18v4M6 8h12v4a6 6 0 0 1-12 0z"/>'],
-    'unknown' => ['Unknown device', '<circle cx="12" cy="12" r="10"/>'
-                                    . '<path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>'],
-];
+/** A device type: its label and icon on the page, and the words in a custom name that give it away. */
+enum DeviceType: string
+{
+    case Router = 'router';
+    case Wifi = 'wifi';
+    case Computer = 'computer';
+    case Laptop = 'laptop';
+    case Server = 'server';
+    case Phone = 'phone';
+    case Tablet = 'tablet';
+    case Tv = 'tv';
+    case Camera = 'camera';
+    case Speaker = 'speaker';
+    case Printer = 'printer';
+    case Bulb = 'bulb';
+    case Plug = 'plug';
+    case Unknown = 'unknown';
 
-// Icon for the "All types" entry of the type filter.
-const ALL_TYPES_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
-                       . '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
+    // The order custom names are checked for keywords in; the first match wins.
+    private const NAME_ORDER = [
+        self::Camera, self::Bulb, self::Phone, self::Tablet, self::Tv, self::Laptop, self::Computer,
+        self::Server, self::Printer, self::Speaker, self::Router, self::Wifi, self::Plug,
+    ];
 
-// Words in a custom name that give away the device type, checked in this order.
-const NAME_KEYWORDS = [
-    ['camera', ['cam', 'camara', 'camera', 'cámara', 'doorbell', 'timbre', 'webcam']],
-    ['bulb', ['bulb', 'foco', 'lamp', 'lampara', 'light', 'luz', 'lámpara']],
-    ['phone', ['celular', 'galaxy', 'handy', 'iphone', 'movil', 'móvil', 'phone', 'pixel', 'telefono', 'teléfono']],
-    ['tablet', ['ipad', 'tablet']],
-    ['tv', ['chromecast', 'firestick', 'roku', 'television', 'televisión', 'tv']],
-    ['laptop', ['laptop', 'macbook', 'notebook', 'thinkpad']],
-    ['computer', ['computadora', 'computer', 'desktop', 'imac', 'pc']],
-    ['server', ['nas', 'pi', 'raspberry', 'server', 'servidor']],
-    ['printer', ['drucker', 'impresora', 'printer']],
-    ['speaker', ['alexa', 'echo', 'parlante', 'sonos', 'speaker']],
-    ['router', ['gateway', 'modem', 'módem', 'router']],
-    ['wifi', ['ap', 'extender', 'mesh', 'repeater', 'repetidor']],
-    ['plug', ['enchufe', 'outlet', 'plug', 'socket']],
-];
+    public function label(): string
+    {
+        return match ($this) {
+            self::Router => 'Router',
+            self::Wifi => 'Access point / extender',
+            self::Computer => 'Computer',
+            self::Laptop => 'Laptop',
+            self::Server => 'Server / NAS',
+            self::Phone => 'Phone',
+            self::Tablet => 'Tablet',
+            self::Tv => 'TV / streaming',
+            self::Camera => 'Camera',
+            self::Speaker => 'Speaker',
+            self::Printer => 'Printer',
+            self::Bulb => 'Light',
+            self::Plug => 'Smart plug / switch',
+            self::Unknown => 'Unknown device',
+        };
+    }
+
+    /** Inline SVG body for a 24x24 viewBox, drawn with strokes. */
+    public function icon(): string
+    {
+        return match ($this) {
+            self::Router => '<rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 17.5h.01M10 17.5h.01M15 14V9"/>'
+                . '<path d="M11.5 6.5a5 5 0 0 1 7 0M9 4a8.5 8.5 0 0 1 12 0"/>',
+            self::Wifi => '<path d="M2 9a14 14 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 20h.01"/>',
+            self::Computer => '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
+            self::Laptop => '<rect x="4" y="4" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>',
+            self::Server => '<rect x="2" y="3" width="20" height="8" rx="2"/>'
+                . '<rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/>',
+            self::Phone => '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+            self::Tablet => '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/>',
+            self::Tv => '<rect x="2" y="7" width="20" height="13" rx="2"/><path d="m7 2 5 5 5-5"/>',
+            self::Camera => '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/>'
+                . '<circle cx="12" cy="13" r="3"/>',
+            self::Speaker => '<rect x="5" y="2" width="14" height="20" rx="2"/>'
+                . '<circle cx="12" cy="14" r="4"/><path d="M12 6h.01"/>',
+            self::Printer => '<path d="M6 9V2h12v7"/><rect x="2" y="9" width="20" height="9" rx="2"/>'
+                . '<rect x="6" y="14" width="12" height="8"/>',
+            self::Bulb => '<path d="M9 18h6M10 22h4"/>'
+                . '<path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V18h6v-1.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>',
+            self::Plug => '<path d="M9 2v6M15 2v6M12 18v4M6 8h12v4a6 6 0 0 1-12 0z"/>',
+            self::Unknown => '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>',
+        };
+    }
+
+    /** @return list<string> */
+    public function keywords(): array
+    {
+        return match ($this) {
+            self::Camera => ['cam', 'camara', 'camera', 'cámara', 'doorbell', 'timbre', 'webcam'],
+            self::Bulb => ['bulb', 'foco', 'lamp', 'lampara', 'light', 'luz', 'lámpara'],
+            self::Phone => ['celular', 'galaxy', 'handy', 'iphone', 'movil', 'móvil', 'phone', 'pixel', 'telefono', 'teléfono'],
+            self::Tablet => ['ipad', 'tablet'],
+            self::Tv => ['chromecast', 'firestick', 'roku', 'television', 'televisión', 'tv'],
+            self::Laptop => ['laptop', 'macbook', 'notebook', 'thinkpad'],
+            self::Computer => ['computadora', 'computer', 'desktop', 'imac', 'pc'],
+            self::Server => ['nas', 'pi', 'raspberry', 'server', 'servidor'],
+            self::Printer => ['drucker', 'impresora', 'printer'],
+            self::Speaker => ['alexa', 'echo', 'parlante', 'sonos', 'speaker'],
+            self::Router => ['gateway', 'modem', 'módem', 'router'],
+            self::Wifi => ['ap', 'extender', 'mesh', 'repeater', 'repetidor'],
+            self::Plug => ['enchufe', 'outlet', 'plug', 'socket'],
+            self::Unknown => [],
+        };
+    }
+
+    /** The type a custom name gives away, if any. */
+    public static function fromName(string $name): ?self
+    {
+        $words = preg_split('/\s+/u', mb_strtolower(str_replace(['-', '_'], ' ', $name)), -1, PREG_SPLIT_NO_EMPTY);
+        foreach (self::NAME_ORDER as $type) {
+            if (array_intersect($words, $type->keywords())) {
+                return $type;
+            }
+        }
+        return null;
+    }
+
+    /** Guess the type from the scan data and the custom name, strongest signal first. */
+    public static function guess(Device $d, ?string $name): self
+    {
+        if ($d->role === 'gateway') {
+            return self::Router;
+        }
+        if ($d->role === 'this machine') {
+            return self::Computer;
+        }
+        $openPorts = $d->openPorts();
+        $isOpen = fn(int ...$numbers): bool => (bool) array_filter($openPorts, fn(Port $p) => in_array($p->port, $numbers, true));
+        // avahi-browse may report "_ipp._tcp" or its readable name "Internet Printer", so match loosely.
+        $mdns = mb_strtolower(implode(' ', array_map(fn(MdnsEntry $m) => $m->service ?? '', $d->mdns)));
+        $rtsp = array_filter($openPorts, fn(Port $p) => str_contains($p->service ?? '', 'rtsp'));
+        $osName = mb_strtolower($d->os->bestGuess ?? '');
+        $fromName = $name !== null ? self::fromName($name) : null;
+
+        return match (true) {
+            $isOpen(554) || $rtsp => self::Camera,
+            $isOpen(8009) || contains_any($mdns, 'googlecast', 'google cast', 'airplay', 'androidtvremote') => self::Tv,
+            $isOpen(631, 9100) || contains_any($mdns, '_ipp', 'printer', 'pdl-datastream') => self::Printer,
+            $fromName !== null => $fromName,
+            contains_any($mdns, 'raop', 'airtunes', 'spotify', 'sonos') => self::Speaker,
+            $isOpen(6668, 9999) || contains_any(mb_strtolower($d->vendor ?? ''), 'tuya', 'espressif', 'shelly', 'sonoff')
+                => self::Plug,
+            $isOpen(53) => self::Wifi,
+            str_contains($osName, 'android') || in_array('ios', preg_split('/\s+/u', $osName), true) => self::Phone,
+            contains_any($osName, 'windows', 'macos', 'mac os') => self::Computer,
+            $d->macRandomized => self::Phone,
+            default => self::Unknown,
+        };
+    }
+}
+
+final class Port
+{
+    public function __construct(
+        public readonly int $port,
+        public readonly ?string $state,
+        public readonly ?string $service,
+        public readonly ?string $version,
+        public readonly ?string $hint,
+    ) {
+    }
+
+    public static function fromArray(array $p): self
+    {
+        return new self((int) $p['port'], str_or_null($p['state'] ?? null), str_or_null($p['service'] ?? null),
+            str_or_null($p['version'] ?? null), str_or_null($p['hint'] ?? null));
+    }
+
+    public function isOpen(): bool
+    {
+        return $this->state === 'open';
+    }
+}
+
+final class MdnsEntry
+{
+    public function __construct(public readonly ?string $hostname, public readonly ?string $service)
+    {
+    }
+
+    public static function fromArray(array $m): self
+    {
+        return new self(str_or_null($m['hostname'] ?? null), str_or_null($m['service'] ?? null));
+    }
+}
+
+final class OsGuess
+{
+    public function __construct(
+        public readonly ?string $bestGuess,
+        public readonly ?string $details,
+        public readonly int|float|null $accuracy,
+        public readonly ?string $source,
+    ) {
+    }
+
+    public static function fromArray(?array $os): self
+    {
+        return new self(str_or_null($os['best_guess'] ?? null), str_or_null($os['details'] ?? null),
+            $os['accuracy'] ?? null, str_or_null($os['source'] ?? null));
+    }
+}
+
+/** One device from a single report or a merged inventory; fields missing from the input are null. */
+final class Device
+{
+    /**
+     * @param list<MdnsEntry> $mdns
+     * @param ?list<Port> $ports null if the device was not port scanned
+     */
+    public function __construct(
+        public readonly string $ip,
+        public readonly ?string $mac,
+        public readonly bool $macRandomized,
+        public readonly ?string $vendor,
+        public readonly ?string $hostname,
+        public readonly ?string $netbios,
+        public readonly ?string $role,
+        public readonly array $mdns,
+        public readonly ?array $ports,
+        public readonly ?string $portsNotShown,
+        public readonly OsGuess $os,
+        public readonly int|float|null $latencyMs,
+        public readonly int $timesSeen,
+        public readonly ?string $lastSeen,
+        public readonly ?string $deepScan,
+    ) {
+    }
+
+    public static function fromArray(array $d): self
+    {
+        return new self(
+            ip: $d['ip'],
+            mac: str_or_null($d['mac'] ?? null),
+            macRandomized: !empty($d['mac_locally_administered']),
+            vendor: str_or_null($d['vendor'] ?? null),
+            hostname: str_or_null($d['hostname'] ?? null),
+            netbios: str_or_null($d['netbios'] ?? null),
+            role: str_or_null($d['role'] ?? null),
+            mdns: array_map(MdnsEntry::fromArray(...), $d['mdns'] ?? []),
+            ports: isset($d['ports']) ? array_map(Port::fromArray(...), $d['ports']) : null,
+            portsNotShown: str_or_null($d['ports_not_shown'] ?? null),
+            os: OsGuess::fromArray($d['os'] ?? null),
+            latencyMs: $d['latency_ms'] ?? null,
+            timesSeen: $d['times_seen'] ?? 0,
+            lastSeen: str_or_null($d['last_seen'] ?? null),
+            deepScan: str_or_null($d['deep_scan'] ?? null),
+        );
+    }
+
+    /** @return list<Port> */
+    public function openPorts(): array
+    {
+        return array_values(array_filter($this->ports ?? [], fn(Port $p) => $p->isOpen()));
+    }
+
+    /** Hostname, NetBIOS and mDNS names, without duplicates. @return list<string> */
+    public function names(): array
+    {
+        $names = [$this->hostname, $this->netbios, ...array_map(fn(MdnsEntry $m) => $m->hostname, $this->mdns)];
+        return array_values(array_unique(array_filter($names, fn(?string $n) => $n !== null)));
+    }
+
+    /** Announced mDNS services, sorted. @return list<string> */
+    public function mdnsServices(): array
+    {
+        $services = array_unique(array_filter(array_map(fn(MdnsEntry $m) => $m->service, $this->mdns), fn(?string $s) => $s !== null));
+        sort($services, SORT_STRING);
+        return $services;
+    }
+}
+
+/** A single lan-spy report or the output of merge-reports.php. */
+final class Report
+{
+    /** @param list<Device> $devices sorted by IP */
+    private function __construct(
+        public readonly array $devices,
+        public readonly bool $merged,
+        public readonly ?string $latest,
+        public readonly int $scans,
+        public readonly ?string $network,
+        public readonly ?string $gateway,
+    ) {
+    }
+
+    public static function fromArray(array $data): self
+    {
+        $devices = array_map(Device::fromArray(...), $data['devices']);
+        usort($devices, fn(Device $a, Device $b) => ip_cmp($a->ip, $b->ip));
+        if (!array_key_exists('merged_from', $data)) {
+            $scan = $data['scan'];
+            return new self($devices, false, $scan['date'], 1, $scan['network'] ?? null, $scan['gateway'] ?? null);
+        }
+        $dates = array_column($data['merged_from'], 'date');
+        return new self($devices, true, $dates ? max($dates) : null, count($data['merged_from']),
+            $data['network'] ?? null, $data['gateway'] ?? null);
+    }
+
+    public function isOnline(Device $d): bool
+    {
+        return !$this->merged || $d->lastSeen === $this->latest;
+    }
+
+    public function openPortCount(): int
+    {
+        return array_sum(array_map(fn(Device $d) => count($d->openPorts()), $this->devices));
+    }
+}
+
+/** A line from device-names.txt: a name, a type in brackets, or both. */
+final class CustomName
+{
+    public function __construct(public readonly ?string $name = null, public readonly ?DeviceType $type = null)
+    {
+    }
+}
+
+/** Custom device names: one '<mac-or-ip> [type] <name>' per line, '#' lines are comments. */
+final class DeviceNames
+{
+    /** @param array<string, CustomName> $byAddress keyed by lowercase MAC (with colons) or IP */
+    private function __construct(private readonly array $byAddress)
+    {
+    }
+
+    public static function none(): self
+    {
+        return new self([]);
+    }
+
+    /** @throws CliError on an unknown device type */
+    public static function load(string $path): self
+    {
+        $byAddress = [];
+        foreach (preg_split('/\r\n|\r|\n/', file_get_contents($path)) as $line) {
+            $parts = preg_split('/\s+/u', ltrim($line), 2, PREG_SPLIT_NO_EMPTY);
+            if (count($parts) !== 2 || str_starts_with($parts[0], '#')) {
+                continue;
+            }
+            $name = trim($parts[1]);
+            $type = null;
+            if (str_starts_with($name, '[') && str_contains($name, ']')) {
+                [$kind, $name] = explode(']', substr($name, 1), 2);
+                $kind = mb_strtolower(trim($kind));
+                $name = trim($name);
+                $type = DeviceType::tryFrom($kind) ?? throw new CliError("unknown device type [$kind] in $path; use one of: "
+                    . implode(', ', array_column(DeviceType::cases(), 'value')) . "\n", 1);
+            }
+            $byAddress[str_replace('-', ':', mb_strtolower($parts[0]))] = new CustomName(str_or_null($name), $type);
+        }
+        return new self($byAddress);
+    }
+
+    public function lookup(Device $d): CustomName
+    {
+        foreach ([$d->mac, $d->ip] as $address) {
+            if ($address !== null && isset($this->byAddress[mb_strtolower($address)])) {
+                return $this->byAddress[mb_strtolower($address)];
+            }
+        }
+        return new CustomName();
+    }
+}
+
+final class Page
+{
+    // Icon for the "All types" entry of the type filter.
+    private const ALL_TYPES_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
+        . '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
+
+    public function __construct(
+        private readonly Report $report,
+        private readonly DeviceNames $names,
+        private readonly int $refresh,
+    ) {
+    }
+
+    public function render(): string
+    {
+        $report = $this->report;
+        $rows = [];
+        $types = [];
+        foreach ($report->devices as $d) {
+            $custom = $this->names->lookup($d);
+            $type = $custom->type ?? DeviceType::guess($d, $custom->name);
+            $types[] = $type->value;
+            $rows[] = $this->row($d, $custom, $type);
+        }
+        $rows = implode("\n", $rows);
+
+        $counts = array_count_values($types);
+        $typeOptions = self::typeOption('', 'All types', self::ALL_TYPES_ICON, count($report->devices));
+        foreach (DeviceType::cases() as $type) {
+            if (isset($counts[$type->value])) {
+                $typeOptions .= self::typeOption($type->value, $type->label(), $type->icon(), $counts[$type->value]);
+            }
+        }
+
+        $metaRefresh = $this->refresh ? '<meta http-equiv="refresh" content="' . $this->refresh . '">' : '';
+        $stats = [
+            [count($report->devices), $report->merged ? 'devices known' : 'devices'],
+            [count(array_filter($report->devices, $report->isOnline(...))), 'in latest scan'],
+            [$report->openPortCount(), 'open ports'],
+        ];
+        if ($report->merged) {
+            $stats[] = [$report->scans, 'scans merged'];
+        }
+        $statsHtml = implode('', array_map(
+            fn(array $s) => '<div class="stat"><b>' . $s[0] . '</b><span>' . esc($s[1]) . '</span></div>',
+            $stats,
+        ));
+
+        $css = "\n" . CSS . "\n";
+        $script = "\n" . SCRIPT . "\n";
+        $sub = esc($report->network ?? '') . ' · gateway ' . esc($report->gateway ?? '?')
+            . ' · latest scan ' . esc(fmt_time($report->latest));
+        $seenHeader = $report->merged ? 'Seen' : 'Port scan';
+        $generated = esc(date('Y-m-d H:i:s'));
+
+        return <<<HTML
+            <!doctype html>
+            <html lang="en">
+            <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            $metaRefresh
+            <title>LAN Devices</title>
+            <style>$css</style>
+            </head>
+            <body>
+            <main>
+            <h1>LAN Devices</h1>
+            <div class="sub">$sub</div>
+            <div class="stats">$statsHtml</div>
+            <div class="toolbar">
+            <div class="filters">
+            <div class="filter"><span id="type-label">Type</span>
+            <div class="type-menu">
+            <button type="button" id="type-button" aria-haspopup="listbox" aria-expanded="false"
+              aria-labelledby="type-label type-button"></button>
+            <ul id="type-list" role="listbox" aria-labelledby="type-label" hidden>$typeOptions</ul>
+            </div>
+            </div>
+            <label class="filter">MAC <input type="search" id="mac-filter" placeholder="e.g. 58:4b" spellcheck="false"
+              autocomplete="off"></label>
+            </div>
+            <button type="button" id="toggle-all">Expand all</button>
+            </div>
+            <div class="wrap">
+            <table>
+            <colgroup><col style="width:165px"><col style="width:20%"><col style="width:194px"><col>
+            <col style="width:17%"><col style="width:95px"><col style="width:90px"></colgroup>
+            <thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th>$seenHeader</th></tr></thead>
+            <tbody>
+            $rows
+            </tbody>
+            </table>
+            <div class="empty" id="no-match" hidden>No devices match the filters.<button type="button" id="clear-filters">Clear filters</button></div>
+            </div>
+            <p class="muted">Generated $generated by render-html.php.
+            Click a row for details. Greyed-out rows were not seen in the latest scan; a yellow edge marks online
+            devices without a custom name.</p>
+            </main>
+            <script>$script</script>
+            </body>
+            </html>
+
+            HTML;
+    }
+
+    private function row(Device $d, CustomName $custom, DeviceType $type): string
+    {
+        $online = $this->report->isOnline($d);
+        $who = esc($d->vendor ?? ($d->macRandomized ? 'Private MAC' : 'Unknown vendor'));
+        $extra = array_map(esc(...), $d->names());
+        if ($custom->name !== null) {
+            array_unshift($extra, $who);
+            $who = '<span class="name">' . esc($custom->name) . '</span>';
+        }
+        if ($d->role !== null) {
+            array_unshift($extra, '<b>' . esc($d->role) . '</b>');
+        }
+        if ($services = $d->mdnsServices()) {
+            $extra[] = 'mDNS: ' . esc(implode(', ', $services));
+        }
+
+        $mac = esc($d->mac ?? '—');
+        if ($d->mac !== null) {
+            $mac .= self::copyButton($d->mac, 'Copy MAC address');
+        }
+        if ($d->macRandomized) {
+            $mac .= '<div class="muted more">randomized</div>';
+        }
+
+        // Blue marker for named devices, yellow for online ones that still need a name.
+        $rowClass = implode(' ', array_filter([
+            $custom->name !== null ? 'named' : ($online ? 'unnamed' : ''),
+            $online ? '' : 'offline',
+        ]));
+
+        $latency = $d->latencyMs !== null ? sprintf('%g ms', $d->latencyMs) : '—';
+        $seen = $this->report->merged
+            ? "{$d->timesSeen}/{$this->report->scans}" . '<div class="muted more">last ' . esc(fmt_time($d->lastSeen)) . '</div>'
+            : esc($d->deepScan);
+
+        $key = esc($d->mac ?? $d->ip);
+        $macAttr = esc($d->mac);
+        $up = $online ? ' up' : '';
+        $ip = esc($d->ip);
+        $icon = self::iconHtml($type);
+        $extraHtml = implode('<br>', $extra);
+        $ports = self::portsHtml($d);
+        $os = self::osHtml($d);
+        return <<<HTML
+            <tr class="$rowClass" data-key="$key" data-type="{$type->value}" data-mac="$macAttr" tabindex="0" aria-expanded="false">
+            <td class="mono"><span class="chev">›</span><span class="dot$up"></span>$ip</td>
+            <td><div class="device">$icon<div>$who<div class="muted more">$extraHtml</div></div></div></td>
+            <td class="mono">$mac</td>
+            <td>$ports</td>
+            <td>$os</td>
+            <td class="mono">$latency</td>
+            <td>$seen</td>
+            </tr>
+            HTML;
+    }
+
+    private static function portsHtml(Device $d): string
+    {
+        if ($d->ports === null) {
+            return '<span class="muted">not scanned</span>';
+        }
+        $chips = [];
+        foreach ($d->ports as $p) {
+            $label = $p->port . '/' . ($p->service ?? '?');
+            $title = implode(' — ', array_filter([$p->version, $p->hint], fn(?string $s) => $s !== null));
+            $class = 'chip';
+            if (!$p->isOpen()) {
+                $class .= ' filtered more';
+                $label .= ' (' . ($p->state ?? 'None') . ')';
+            } elseif ($p->hint !== null) {
+                $class .= ' hint';
+                $label = "{$p->port} {$p->hint}";
+            }
+            $chips[] = '<span class="' . $class . '" title="' . esc($title) . '">' . esc($label) . '</span>';
+        }
+        if ($d->portsNotShown !== null) {
+            $chips[] = '<div class="muted more">' . esc($d->portsNotShown) . '</div>';
+        }
+        if (!$d->openPorts()) {
+            array_unshift($chips, '<span class="muted less">none open</span>');
+        }
+        return implode('', $chips);
+    }
+
+    private static function osHtml(Device $d): string
+    {
+        $name = $d->os->bestGuess ?? $d->os->details;
+        if ($name === null) {
+            return '<span class="muted">unknown</span>';
+        }
+        $out = esc($name);
+        if (!empty($d->os->accuracy)) {
+            $out .= ' <span class="muted">' . $d->os->accuracy . '%</span>';
+        }
+        if ($d->os->source === 'local') {
+            $out .= '<div class="muted more">read locally</div>';
+        } elseif (!$d->openPorts()) {
+            $out .= '<div class="badge more">unreliable: no open ports</div>';
+        }
+        return $out;
+    }
+
+    private static function iconHtml(DeviceType $type): string
+    {
+        $label = esc($type->label());
+        return '<span class="icon" title="' . $label . '">'
+            . '<svg viewBox="0 0 24 24" role="img" aria-label="' . $label . '">' . $type->icon() . '</svg></span>';
+    }
+
+    /** One entry of the type filter list: icon, label and device count. */
+    private static function typeOption(string $value, string $label, string $iconBody, int $count): string
+    {
+        return '<li role="option" tabindex="-1" data-value="' . esc($value) . '">'
+            . '<span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true">' . $iconBody . '</svg></span>'
+            . esc($label) . '<span class="count">' . $count . '</span></li>';
+    }
+
+    /** A small button that copies $text to the clipboard; it shows a check mark once copied. */
+    private static function copyButton(string $text, string $label): string
+    {
+        return '<button type="button" class="copy" data-copy="' . esc($text) . '" title="' . esc($label) . '"'
+            . ' aria-label="' . esc("$label $text") . '"><svg class="to-copy" viewBox="0 0 24 24" aria-hidden="true">'
+            . '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'
+            . '</svg><svg class="copied" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>';
+    }
+}
+
+/** An error to report on stderr; the code is the exit status. */
+final class CliError extends RuntimeException
+{
+}
+
+final class Options
+{
+    private const USAGE = "usage: render-html.php <report.json> [--refresh SECONDS] [--names FILE]\n";
+
+    private function __construct(
+        public readonly string $report,
+        public readonly int $refresh,
+        public readonly string $namesPath,
+    ) {
+    }
+
+    /**
+     * @param list<string> $args the command line without the script name
+     * @throws CliError on invalid arguments
+     */
+    public static function parse(array $args): self
+    {
+        $report = null;
+        $refresh = 0;
+        $namesPath = DEFAULT_NAMES;
+        while ($args) {
+            $arg = array_shift($args);
+            if ($arg === '-h' || $arg === '--help') {
+                self::help();
+            }
+            if (preg_match('/^--(refresh|names)(?:=(.*))?$/s', $arg, $m)) {
+                $value = $m[2] ?? array_shift($args) ?? throw self::error("--{$m[1]} needs a value");
+                if ($m[1] === 'names') {
+                    $namesPath = $value;
+                } elseif (preg_match('/^-?\d+$/', trim($value))) {
+                    $refresh = (int) $value;
+                } else {
+                    throw self::error("--refresh: invalid number: '$value'");
+                }
+            } elseif ($report === null && ($arg === '-' || !str_starts_with($arg, '-'))) {
+                $report = $arg;
+            } else {
+                throw self::error("unrecognized argument: $arg");
+            }
+        }
+        return new self($report ?? throw self::error('the report argument is required'), $refresh, $namesPath);
+    }
+
+    private static function help(): never
+    {
+        echo self::USAGE, "\n",
+            "  --refresh SECONDS  auto-reload the page every N seconds\n",
+            "  --names FILE       custom device names file (default: device-names.txt next to this script, if present)\n";
+        exit(0);
+    }
+
+    private static function error(string $message): CliError
+    {
+        return new CliError(self::USAGE . "render-html.php: error: $message\n", 2);
+    }
+}
 
 function esc(?string $s): string
 {
     return strtr((string) $s, ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;', '"' => '&quot;', "'" => '&#x27;']);
 }
 
-/** Python-style truthiness for optional strings: null and '' are missing, '0' is a value. */
-function present(?string $s): bool
+/** Treat '' like a missing value, as the scan data does. */
+function str_or_null(mixed $value): ?string
 {
-    return $s !== null && $s !== '';
+    return $value === null || $value === '' ? null : (string) $value;
+}
+
+function contains_any(string $haystack, string ...$needles): bool
+{
+    foreach ($needles as $needle) {
+        if (str_contains($haystack, $needle)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /** Use the system timezone (PHP defaults to UTC) so "Generated" shows local time. */
@@ -295,7 +908,7 @@ function ip_cmp(string $a, string $b): int
 
 function fmt_time(?string $iso): string
 {
-    if (!present($iso)) {
+    if ($iso === null || $iso === '') {
         return '';
     }
     try {
@@ -305,432 +918,36 @@ function fmt_time(?string $iso): string
     }
 }
 
-function has_open_ports(array $d): bool
+/** @throws CliError if the report cannot be read or parsed */
+function read_report(string $path): Report
 {
-    foreach ($d['ports'] ?? [] as $p) {
-        if (($p['state'] ?? null) === 'open') {
-            return true;
-        }
+    $raw = @file_get_contents($path === '-' ? 'php://stdin' : $path);
+    if ($raw === false) {
+        throw new CliError("cannot read $path\n", 1);
     }
-    return false;
+    try {
+        return Report::fromArray(json_decode($raw, true, flags: JSON_THROW_ON_ERROR));
+    } catch (JsonException $e) {
+        throw new CliError("cannot parse $path: {$e->getMessage()}\n", 1);
+    }
 }
 
-function ports_html(array $d): string
-{
-    $ports = $d['ports'] ?? null;
-    if ($ports === null) {
-        return '<span class="muted">not scanned</span>';
-    }
-    $chips = [];
-    foreach ($ports as $p) {
-        $label = $p['port'] . '/' . (($p['service'] ?? '') ?: '?');
-        $title = implode(' — ', array_filter([$p['version'] ?? null, $p['hint'] ?? null], 'present'));
-        $cls = 'chip';
-        if (($p['state'] ?? null) !== 'open') {
-            $cls .= ' filtered more';
-            $label .= ' (' . ($p['state'] ?? 'None') . ')';
-        } elseif (present($p['hint'] ?? null)) {
-            $cls .= ' hint';
-            $label = "{$p['port']} {$p['hint']}";
-        }
-        $chips[] = '<span class="' . $cls . '" title="' . esc($title) . '">' . esc($label) . '</span>';
-    }
-    $rest = $d['ports_not_shown'] ?? null;
-    if (present($rest)) {
-        $chips[] = '<div class="muted more">' . esc($rest) . '</div>';
-    }
-    if (!has_open_ports($d)) {
-        array_unshift($chips, '<span class="muted less">none open</span>');
-    }
-    return implode('', $chips);
-}
-
-function os_html(array $d): string
-{
-    $os = $d['os'] ?? [];
-    $name = ($os['best_guess'] ?? '') ?: ($os['details'] ?? '');
-    if (!present($name)) {
-        return '<span class="muted">unknown</span>';
-    }
-    $out = esc($name);
-    if (!empty($os['accuracy'])) {
-        $out .= ' <span class="muted">' . $os['accuracy'] . '%</span>';
-    }
-    if (($os['source'] ?? null) === 'local') {
-        $out .= '<div class="muted more">read locally</div>';
-    } elseif (!has_open_ports($d)) {
-        $out .= '<div class="badge more">unreliable: no open ports</div>';
-    }
-    return $out;
-}
-
-/**
- * Read custom device names: one '<mac-or-ip> [type] <name>' per line, '#' lines are comments.
- *
- * @return array<string, array{?string, ?string}> address => [name, type]
- */
-function load_names(string $path): array
-{
-    $names = [];
-    foreach (preg_split('/\r\n|\r|\n/', file_get_contents($path)) as $line) {
-        $parts = preg_split('/\s+/u', ltrim($line), 2, PREG_SPLIT_NO_EMPTY);
-        if (count($parts) !== 2 || str_starts_with($parts[0], '#')) {
-            continue;
-        }
-        $name = trim($parts[1]);
-        $kind = null;
-        if (str_starts_with($name, '[') && str_contains($name, ']')) {
-            [$kind, $name] = explode(']', substr($name, 1), 2);
-            $kind = mb_strtolower(trim($kind));
-            $name = trim($name);
-            if (!isset(ICONS[$kind])) {
-                fwrite(STDERR, "unknown device type [$kind] in $path; use one of: " . implode(', ', array_keys(ICONS)) . "\n");
-                exit(1);
-            }
-        }
-        $names[str_replace('-', ':', mb_strtolower($parts[0]))] = [present($name) ? $name : null, $kind];
-    }
-    return $names;
-}
-
-function custom_name(array $d, array $names): array
-{
-    foreach ([$d['mac'] ?? null, $d['ip']] as $key) {
-        if (present($key) && isset($names[mb_strtolower($key)])) {
-            return $names[mb_strtolower($key)];
-        }
-    }
-    return [null, null];
-}
-
-/** Guess an icon key from the scan data and the custom name, strongest signal first. */
-function device_type(array $d, ?string $name): string
-{
-    $role = $d['role'] ?? null;
-    if ($role === 'gateway') {
-        return 'router';
-    }
-    if ($role === 'this machine') {
-        return 'computer';
-    }
-    $openPorts = [];
-    foreach ($d['ports'] ?? [] as $p) {
-        if (($p['state'] ?? null) === 'open') {
-            $openPorts[$p['port']] = $p;
-        }
-    }
-    $isOpen = fn(int ...$ports) => (bool) array_intersect_key($openPorts, array_flip($ports));
-    // avahi-browse may report "_ipp._tcp" or its readable name "Internet Printer", so match loosely.
-    $mdns = mb_strtolower(implode(' ', array_map(fn($m) => $m['service'] ?? '', $d['mdns'] ?? [])));
-    $announces = function (string ...$words) use ($mdns): bool {
-        foreach ($words as $w) {
-            if (str_contains($mdns, $w)) {
-                return true;
-            }
-        }
-        return false;
-    };
-    $rtsp = array_filter($openPorts, fn($p) => str_contains($p['service'] ?? '', 'rtsp'));
-    if ($isOpen(554) || $rtsp) {
-        return 'camera';
-    }
-    if ($isOpen(8009) || $announces('googlecast', 'google cast', 'airplay', 'androidtvremote')) {
-        return 'tv';
-    }
-    if ($isOpen(631, 9100) || $announces('_ipp', 'printer', 'pdl-datastream')) {
-        return 'printer';
-    }
-    if (present($name)) {
-        $words = preg_split('/\s+/u', mb_strtolower(str_replace(['-', '_'], ' ', $name)), -1, PREG_SPLIT_NO_EMPTY);
-        foreach (NAME_KEYWORDS as [$kind, $keywords]) {
-            if (array_intersect($words, $keywords)) {
-                return $kind;
-            }
-        }
-    }
-    if ($announces('raop', 'airtunes', 'spotify', 'sonos')) {
-        return 'speaker';
-    }
-    $vendor = mb_strtolower($d['vendor'] ?? '');
-    $iotVendor = array_filter(['tuya', 'espressif', 'shelly', 'sonoff'], fn($v) => str_contains($vendor, $v));
-    if ($isOpen(6668, 9999) || $iotVendor) {
-        return 'plug';
-    }
-    if ($isOpen(53)) {
-        return 'wifi';
-    }
-    $osName = mb_strtolower(($d['os']['best_guess'] ?? '') ?: '');
-    if (str_contains($osName, 'android') || in_array('ios', preg_split('/\s+/u', $osName), true)) {
-        return 'phone';
-    }
-    if (str_contains($osName, 'windows') || str_contains($osName, 'macos') || str_contains($osName, 'mac os')) {
-        return 'computer';
-    }
-    if (!empty($d['mac_locally_administered'])) {
-        return 'phone';
-    }
-    return 'unknown';
-}
-
-function icon_html(string $kind): string
-{
-    [$label, $body] = ICONS[$kind];
-    return '<span class="icon" title="' . esc($label) . '">'
-        . '<svg viewBox="0 0 24 24" role="img" aria-label="' . esc($label) . '">' . $body . '</svg></span>';
-}
-
-/** One entry of the type filter list: icon, label and device count. */
-function type_option(string $value, string $label, string $iconBody, int $count): string
-{
-    return '<li role="option" tabindex="-1" data-value="' . esc($value) . '">'
-        . '<span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true">' . $iconBody . '</svg></span>'
-        . esc($label) . '<span class="count">' . $count . '</span></li>';
-}
-
-/** A small button that copies $text to the clipboard; it shows a check mark once copied. */
-function copy_button(string $text, string $label): string
-{
-    return '<button type="button" class="copy" data-copy="' . esc($text) . '" title="' . esc($label) . '"'
-        . ' aria-label="' . esc("$label $text") . '"><svg class="to-copy" viewBox="0 0 24 24" aria-hidden="true">'
-        . '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'
-        . '</svg><svg class="copied" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>';
-}
-
-function device_row(array $d, string $kind, bool $online, bool $merged, int $totalReports, array $customNames): string
-{
-    $names = [$d['hostname'] ?? null, $d['netbios'] ?? null];
-    foreach ($d['mdns'] ?? [] as $m) {
-        $names[] = $m['hostname'] ?? null;
-    }
-    $names = array_values(array_unique(array_filter($names, 'present')));
-    $who = esc(($d['vendor'] ?? '') ?: (!empty($d['mac_locally_administered']) ? 'Private MAC' : 'Unknown vendor'));
-    $extra = array_map('esc', $names);
-    [$custom] = custom_name($d, $customNames);
-    $icon = icon_html($kind);
-    if ($custom !== null) {
-        array_unshift($extra, $who);
-        $who = '<span class="name">' . esc($custom) . '</span>';
-    }
-    if (present($d['role'] ?? null)) {
-        array_unshift($extra, '<b>' . esc($d['role']) . '</b>');
-    }
-    $services = array_unique(array_filter(array_map(fn($m) => $m['service'] ?? null, $d['mdns'] ?? []), 'present'));
-    sort($services, SORT_STRING);
-    if ($services) {
-        $extra[] = 'mDNS: ' . esc(implode(', ', $services));
-    }
-
-    $mac = esc(($d['mac'] ?? '') ?: '—');
-    if (present($d['mac'] ?? null)) {
-        $mac .= copy_button($d['mac'], 'Copy MAC address');
-    }
-    if (!empty($d['mac_locally_administered'])) {
-        $mac .= '<div class="muted more">randomized</div>';
-    }
-
-    // Blue marker for named devices, yellow for online ones that still need a name.
-    $rowClass = implode(' ', array_filter([$custom !== null ? 'named' : ($online ? 'unnamed' : ''),
-        $online ? '' : 'offline']));
-
-    $latency = isset($d['latency_ms']) ? sprintf('%g ms', $d['latency_ms']) : '—';
-    if ($merged) {
-        $seen = ($d['times_seen'] ?? 0) . "/$totalReports"
-            . '<div class="muted more">last ' . esc(fmt_time($d['last_seen'] ?? null)) . '</div>';
-    } else {
-        $seen = esc($d['deep_scan'] ?? '');
-    }
-
-    $key = esc(($d['mac'] ?? '') ?: $d['ip']);
-    $macAttr = esc($d['mac'] ?? '');
-    $up = $online ? ' up' : '';
-    $ip = esc($d['ip']);
-    $extraHtml = implode('<br>', $extra);
-    $ports = ports_html($d);
-    $os = os_html($d);
-    return <<<HTML
-        <tr class="$rowClass" data-key="$key" data-type="$kind" data-mac="$macAttr" tabindex="0" aria-expanded="false">
-        <td class="mono"><span class="chev">›</span><span class="dot$up"></span>$ip</td>
-        <td><div class="device">$icon<div>$who<div class="muted more">$extraHtml</div></div></div></td>
-        <td class="mono">$mac</td>
-        <td>$ports</td>
-        <td>$os</td>
-        <td class="mono">$latency</td>
-        <td>$seen</td>
-        </tr>
-        HTML;
-}
-
-function render(array $data, int $refresh, array $customNames): string
-{
-    $merged = array_key_exists('merged_from', $data);
-    if ($merged) {
-        $reports = $data['merged_from'];
-        $dates = array_column($reports, 'date');
-        usort($dates, 'strcmp');
-        $latest = end($dates);
-        $total = count($reports);
-        [$network, $gateway] = [$data['network'] ?? null, $data['gateway'] ?? null];
-    } else {
-        $latest = $data['scan']['date'];
-        $total = 1;
-        [$network, $gateway] = [$data['scan']['network'] ?? null, $data['scan']['gateway'] ?? null];
-    }
-
-    $devices = $data['devices'];
-    usort($devices, fn($a, $b) => ip_cmp($a['ip'], $b['ip']));
-    $isOnline = fn($d) => !$merged || ($d['last_seen'] ?? null) === $latest;
-    $online = count(array_filter($devices, $isOnline));
-    $openPorts = 0;
-    foreach ($devices as $d) {
-        foreach ($d['ports'] ?? [] as $p) {
-            $openPorts += ($p['state'] ?? null) === 'open' ? 1 : 0;
-        }
-    }
-
-    $kinds = [];
-    foreach ($devices as $i => $d) {
-        [$custom, $kind] = custom_name($d, $customNames);
-        $kinds[$i] = $kind ?? device_type($d, $custom);
-    }
-    $counts = array_count_values($kinds);
-    $typeOptions = type_option('', 'All types', ALL_TYPES_ICON, count($devices));
-    foreach (ICONS as $k => [$label, $body]) {
-        if (!empty($counts[$k])) {
-            $typeOptions .= type_option($k, $label, $body, $counts[$k]);
-        }
-    }
-
-    $rows = [];
-    foreach ($devices as $i => $d) {
-        $rows[] = device_row($d, $kinds[$i], $isOnline($d), $merged, $total, $customNames);
-    }
-    $rows = implode("\n", $rows);
-    $metaRefresh = $refresh ? '<meta http-equiv="refresh" content="' . $refresh . '">' : '';
-    $stats = [
-        [count($devices), $merged ? 'devices known' : 'devices'],
-        [$online, 'in latest scan'],
-        [$openPorts, 'open ports'],
-    ];
-    if ($merged) {
-        $stats[] = [$total, 'scans merged'];
-    }
-    $statsHtml = implode('', array_map(fn($s) => '<div class="stat"><b>' . $s[0] . '</b><span>' . esc($s[1]) . '</span></div>', $stats));
-
-    $css = "\n" . CSS . "\n";
-    $script = "\n" . SCRIPT . "\n";
-    $sub = esc($network ?? '') . ' · gateway ' . esc($gateway ?? '?') . ' · latest scan ' . esc(fmt_time($latest));
-    $seenHeader = $merged ? 'Seen' : 'Port scan';
-    $generated = esc(date('Y-m-d H:i:s'));
-
-    return <<<HTML
-        <!doctype html>
-        <html lang="en">
-        <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        $metaRefresh
-        <title>LAN Devices</title>
-        <style>$css</style>
-        </head>
-        <body>
-        <main>
-        <h1>LAN Devices</h1>
-        <div class="sub">$sub</div>
-        <div class="stats">$statsHtml</div>
-        <div class="toolbar">
-        <div class="filters">
-        <div class="filter"><span id="type-label">Type</span>
-        <div class="type-menu">
-        <button type="button" id="type-button" aria-haspopup="listbox" aria-expanded="false"
-          aria-labelledby="type-label type-button"></button>
-        <ul id="type-list" role="listbox" aria-labelledby="type-label" hidden>$typeOptions</ul>
-        </div>
-        </div>
-        <label class="filter">MAC <input type="search" id="mac-filter" placeholder="e.g. 58:4b" spellcheck="false"
-          autocomplete="off"></label>
-        </div>
-        <button type="button" id="toggle-all">Expand all</button>
-        </div>
-        <div class="wrap">
-        <table>
-        <colgroup><col style="width:165px"><col style="width:20%"><col style="width:194px"><col>
-        <col style="width:17%"><col style="width:95px"><col style="width:90px"></colgroup>
-        <thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th>$seenHeader</th></tr></thead>
-        <tbody>
-        $rows
-        </tbody>
-        </table>
-        <div class="empty" id="no-match" hidden>No devices match the filters.<button type="button" id="clear-filters">Clear filters</button></div>
-        </div>
-        <p class="muted">Generated $generated by render-html.php.
-        Click a row for details. Greyed-out rows were not seen in the latest scan; a yellow edge marks online
-        devices without a custom name.</p>
-        </main>
-        <script>$script</script>
-        </body>
-        </html>
-
-        HTML;
-}
-
-function usage(): string
-{
-    return "usage: render-html.php <report.json> [--refresh SECONDS] [--names FILE]\n";
-}
-
-function main(array $argv): void
+function main(array $argv): int
 {
     use_local_timezone();
-    $report = null;
-    $refresh = 0;
-    $namesPath = DEFAULT_NAMES;
-    $args = array_slice($argv, 1);
-    while ($args) {
-        $arg = array_shift($args);
-        if ($arg === '-h' || $arg === '--help') {
-            echo usage(), "\n",
-                "  --refresh SECONDS  auto-reload the page every N seconds\n",
-                "  --names FILE       custom device names file (default: device-names.txt next to this script, if present)\n";
-            exit(0);
+    try {
+        $options = Options::parse(array_slice($argv, 1));
+        $report = read_report($options->report);
+        if ($options->namesPath !== DEFAULT_NAMES && !file_exists($options->namesPath)) {
+            throw new CliError("names file not found: {$options->namesPath}\n", 1);
         }
-        if (preg_match('/^--(refresh|names)(?:=(.*))?$/s', $arg, $m)) {
-            $value = $m[2] ?? array_shift($args);
-            if ($value === null) {
-                fwrite(STDERR, usage() . "render-html.php: error: --{$m[1]} needs a value\n");
-                exit(2);
-            }
-            if ($m[1] === 'refresh') {
-                if (!preg_match('/^-?\d+$/', trim($value))) {
-                    fwrite(STDERR, usage() . "render-html.php: error: --refresh: invalid number: '$value'\n");
-                    exit(2);
-                }
-                $refresh = (int) $value;
-            } else {
-                $namesPath = $value;
-            }
-        } elseif ($report === null && ($arg === '-' || !str_starts_with($arg, '-'))) {
-            $report = $arg;
-        } else {
-            fwrite(STDERR, usage() . "render-html.php: error: unrecognized argument: $arg\n");
-            exit(2);
-        }
+        $names = file_exists($options->namesPath) ? DeviceNames::load($options->namesPath) : DeviceNames::none();
+    } catch (CliError $e) {
+        fwrite(STDERR, $e->getMessage());
+        return $e->getCode();
     }
-    if ($report === null) {
-        fwrite(STDERR, usage() . "render-html.php: error: the report argument is required\n");
-        exit(2);
-    }
-    $raw = @file_get_contents($report);
-    if ($raw === false) {
-        fwrite(STDERR, "cannot read $report\n");
-        exit(1);
-    }
-    $data = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
-    if ($namesPath !== DEFAULT_NAMES && !file_exists($namesPath)) {
-        fwrite(STDERR, "names file not found: $namesPath\n");
-        exit(1);
-    }
-    $customNames = file_exists($namesPath) ? load_names($namesPath) : [];
-    echo render($data, $refresh, $customNames);
+    echo (new Page($report, $names, $options->refresh))->render();
+    return 0;
 }
 
-main($argv);
+exit(main($argv));
