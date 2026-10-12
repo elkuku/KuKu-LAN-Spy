@@ -149,6 +149,17 @@ the clipboard.
 `--names` points to another one. `device-names.txt` is git-ignored since it
 lists your MACs.
 
+## Code layout
+
+The three PHP scripts are thin entry points; the code lives in `src/`, one
+class per file, loaded by `src/autoload.php` (no Composer needed):
+
+- `src/Build/` — `build-report.php`: reads the scan files into the JSON report
+- `src/Merge/` — `merge-reports.php`: merges reports into the inventory
+- `src/Render/` — `render-html.php`: turns a report into the HTML page, using
+  the templates in `templates/`
+- `src/Util/` — shared helpers (IP sorting, JSON output, timezone, strings)
+
 ## Typical use
 
 ```sh

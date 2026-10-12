@@ -1,4 +1,7 @@
 <?php
+
+use LanSpy\Render\Html;
+
 /**
  * The whole page: a standalone HTML file with the CSS and JS inlined.
  *
@@ -31,10 +34,10 @@
 <body>
 <main>
 <h1>LAN Devices</h1>
-<div class="sub"><?= esc($network) ?> · gateway <?= esc($gateway ?? '?') ?> · latest scan <?= esc($latestScan) ?></div>
+<div class="sub"><?= Html::escape($network) ?> · gateway <?= Html::escape($gateway ?? '?') ?> · latest scan <?= Html::escape($latestScan) ?></div>
 <div class="stats">
 <?php foreach ($stats as [$count, $label]): ?>
-<div class="stat"><b><?= $count ?></b><span><?= esc($label) ?></span></div>
+<div class="stat"><b><?= $count ?></b><span><?= Html::escape($label) ?></span></div>
 <?php endforeach ?>
 </div>
 <div class="toolbar">
@@ -45,8 +48,8 @@
   aria-labelledby="type-label type-button"></button>
 <ul id="type-list" role="listbox" aria-labelledby="type-label" hidden>
 <?php foreach ($typeOptions as [$value, $label, $icon, $count]): ?>
-<li role="option" tabindex="-1" data-value="<?= esc($value) ?>">
-  <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><?= $icon ?></svg></span><?= esc($label) ?><span class="count"><?= $count ?></span>
+<li role="option" tabindex="-1" data-value="<?= Html::escape($value) ?>">
+  <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true"><?= $icon ?></svg></span><?= Html::escape($label) ?><span class="count"><?= $count ?></span>
 </li>
 <?php endforeach ?>
 </ul>
@@ -61,14 +64,14 @@
 <table>
 <colgroup><col style="width:165px"><col style="width:20%"><col style="width:194px"><col>
 <col style="width:17%"><col style="width:95px"><col style="width:90px"></colgroup>
-<thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th><?= esc($seenHeader) ?></th></tr></thead>
+<thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th><?= Html::escape($seenHeader) ?></th></tr></thead>
 <tbody>
 <?= implode("\n", $rows) ?>
 </tbody>
 </table>
 <div class="empty" id="no-match" hidden>No devices match the filters.<button type="button" id="clear-filters">Clear filters</button></div>
 </div>
-<p class="muted">Generated <?= esc($generated) ?> by render-html.php.
+<p class="muted">Generated <?= Html::escape($generated) ?> by render-html.php.
 Click a row for details. Greyed-out rows were not seen in the latest scan; a yellow edge marks online
 devices without a custom name.</p>
 </main>
