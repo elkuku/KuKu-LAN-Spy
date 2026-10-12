@@ -28,9 +28,9 @@ while true; do
     start=$(date +%s)
     log "Scanning..."
     if "$SCRIPT_DIR/lan-spy.sh" "$IFACE" "$REPORTS/lan-report-$(date +%Y%m%d-%H%M%S).json"; then
-        python3 -I "$SCRIPT_DIR/merge-reports.py" "$REPORTS"/lan-report-*.json > "$MERGED.tmp" \
+        php "$SCRIPT_DIR/merge-reports.php" "$REPORTS"/lan-report-*.json > "$MERGED.tmp" \
             && mv "$MERGED.tmp" "$MERGED"
-        python3 -I "$SCRIPT_DIR/render-html.py" "$MERGED" --refresh 60 > "$HTML.tmp" \
+        php "$SCRIPT_DIR/render-html.php" "$MERGED" --refresh 60 > "$HTML.tmp" \
             && mv "$HTML.tmp" "$HTML"
         [[ -n "${SUDO_USER:-}" ]] && chown "$SUDO_USER": "$MERGED" "$HTML"
         log "Updated $HTML"

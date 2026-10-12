@@ -8,9 +8,9 @@ and as an HTML page.
 - `arp-scan`, `nmap`
 - `avahi-browse` (avahi) for mDNS/Bonjour discovery
 - `nmblookup` (smbclient) for NetBIOS names
-- Python 3 (standard library only)
+- PHP 8.1 or newer (CLI, with the bundled SimpleXML, mbstring and ctype extensions)
 
-On Arch Linux: `sudo pacman -S arp-scan nmap avahi smbclient python`
+On Arch Linux: `sudo pacman -S arp-scan nmap avahi smbclient php`
 
 ## Scripts
 
@@ -38,18 +38,18 @@ Steps:
    locally instead: the interface MAC (`/sys/class/net`), the OS and kernel
    (`/etc/os-release`, `uname`) and the TCP ports it listens on for the LAN
    (`ss -ltnp`, with the owning process as the version).
-6. **`build-report.py`** turns the collected data into the JSON report.
+6. **`build-report.php`** turns the collected data into the JSON report.
 
 The raw nmap XML is kept in `lan-report-<timestamp>-raw/` for troubleshooting.
 When run through `sudo`, the report and raw folder are handed back to the
 calling user.
 
-### `build-report.py` — build the JSON report
+### `build-report.php` — build the JSON report
 
 Called by `lan-spy.sh`; you normally don't run it directly.
 
 ```sh
-./build-report.py <scan-dir> <interface> <cidr> <gateway> <hostname> > report.json
+./build-report.php <scan-dir> <interface> <cidr> <gateway> <hostname> > report.json
 ```
 
 Reads the intermediate files from `<scan-dir>` (`arp.tsv`, `discovery.xml`,
@@ -73,10 +73,10 @@ Reads the intermediate files from `<scan-dir>` (`arp.tsv`, `discovery.xml`,
 OS guesses for hosts with no open ports are unreliable — nmap needs at least
 one open and one closed port to fingerprint well.
 
-### `merge-reports.py` — combine several reports
+### `merge-reports.php` — combine several reports
 
 ```sh
-./merge-reports.py [report.json ...] > lan-devices-merged.json
+./merge-reports.php [report.json ...] > lan-devices-merged.json
 ```
 
 With no arguments, merges every `lan-report-*.json` in the current directory.
@@ -105,10 +105,10 @@ all reports and regenerates the HTML page:
 
 Stop it with Ctrl+C. This is a stand-in until the scan runs from cron.
 
-### `render-html.py` — HTML page
+### `render-html.php` — HTML page
 
 ```sh
-./render-html.py <report.json> [--refresh SECONDS] [--names FILE] > lan-devices.html
+./render-html.php <report.json> [--refresh SECONDS] [--names FILE] > lan-devices.html
 ```
 
 Renders a single report or a merged inventory as one self-contained HTML file
@@ -137,7 +137,7 @@ the guess is wrong, set the type in brackets before the name, e.g.
 types. The "Type" menu above the table shows only devices of one type; it
 lists the types present with their counts, and the choice is kept across the
 page's auto-refresh.
-`render-html.py` (and so `lan-watch.sh`) picks the file up automatically;
+`render-html.php` (and so `lan-watch.sh`) picks the file up automatically;
 `--names` points to another one. `device-names.txt` is git-ignored since it
 lists your MACs.
 
@@ -152,8 +152,8 @@ Or by hand:
 
 ```sh
 sudo ./lan-spy.sh          # run a few times, a few minutes apart
-./merge-reports.py > lan-devices-merged.json
-./render-html.py lan-devices-merged.json > lan-devices.html
+./merge-reports.php > lan-devices-merged.json
+./render-html.php lan-devices-merged.json > lan-devices.html
 ```
 
 Only scan networks you own or are allowed to scan.

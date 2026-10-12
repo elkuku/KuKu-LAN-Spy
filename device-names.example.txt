@@ -1,4 +1,4 @@
-# Custom device names for render-html.py.
+# Custom device names for render-html.php.
 # Copy to device-names.txt (which git ignores) and edit.
 #
 # One device per line: a MAC or IP address, then the name.

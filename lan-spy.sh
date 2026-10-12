@@ -103,7 +103,12 @@ log "Listening ports on this machine..."
 ss -Hltnp > "$TMP/local-ss.txt" 2>/dev/null
 
 log "Building JSON..."
-python3 -I "$SCRIPT_DIR/build-report.py" "$TMP" "$IFACE" "$CIDR" "$GATEWAY" "$(hostname)" > "$OUT"
+# Build into the temp dir first, so a failed build never leaves an empty report behind.
+if ! php "$SCRIPT_DIR/build-report.php" "$TMP" "$IFACE" "$CIDR" "$GATEWAY" "$(hostname)" > "$TMP/report.json"; then
+    log "Building the report failed"
+    exit 1
+fi
+mv "$TMP/report.json" "$OUT"
 
 # Keep the raw nmap output next to the report for troubleshooting.
 RAW="${OUT%.json}-raw"
