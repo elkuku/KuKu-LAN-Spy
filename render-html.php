@@ -62,14 +62,28 @@ tr.unnamed td:first-child { box-shadow: inset 3px 0 0 var(--unnamed); }
 .icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7;
   stroke-linecap: round; stroke-linejoin: round; }
 tr.named .icon { color: var(--name); }
-.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+  margin-bottom: 8px; }
+.copy { width: 22px; height: 22px; margin-left: 4px; padding: 3px; border: 0; border-radius: 4px; vertical-align: middle;
+  background: none; color: var(--muted); cursor: pointer; }
+.copy:hover, .copy:focus-visible { color: var(--text); background: color-mix(in srgb, var(--border) 60%, transparent); }
+.copy svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; }
+.copy .copied, .copy.done .to-copy { display: none; }
+.copy.done .copied { display: block; }
+.copy.done { color: var(--up); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .filter { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.toolbar button { font: inherit; font-size: 12px; color: var(--text); background: var(--card);
+.toolbar button, .toolbar input, .empty button { font: inherit; font-size: 12px; color: var(--text); background: var(--card);
   border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.toolbar input { width: 150px; cursor: text; }
+.empty { padding: 28px 12px; text-align: center; color: var(--muted); }
+.empty button { margin-left: 8px; }
+.toolbar button:disabled { opacity: .5; cursor: default; }
+.toolbar .active { border-color: var(--filtered); background: color-mix(in srgb, var(--filtered) 22%, var(--card)); }
 .type-menu { position: relative; }
 #type-button, .type-menu li { display: flex; align-items: center; gap: 8px; }
 #type-button::after { content: "▾"; color: var(--muted); }
-#type-button.active { border-color: var(--filtered); background: color-mix(in srgb, var(--filtered) 22%, var(--card)); }
 .type-menu ul { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; min-width: 100%; margin: 0;
   padding: 4px; list-style: none; white-space: nowrap; background: var(--card); border: 1px solid var(--border);
   border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / .15); }
@@ -103,6 +117,9 @@ const toggleAll = document.getElementById("toggle-all");
 const typeButton = document.getElementById("type-button");
 const typeList = document.getElementById("type-list");
 const typeOptions = [...typeList.children];
+const macFilter = document.getElementById("mac-filter");
+const noMatch = document.getElementById("no-match");
+let typeValue = "";
 const shown = () => rows.filter(r => !r.hidden);
 function set(tr, on) {
   tr.classList.toggle("open", on);
@@ -111,6 +128,7 @@ function set(tr, on) {
 }
 function sync() {
   toggleAll.textContent = shown().every(r => r.classList.contains("open")) ? "Collapse all" : "Expand all";
+  toggleAll.disabled = shown().length === 0;
   save();
 }
 rows.forEach(tr => {
@@ -120,6 +138,7 @@ rows.forEach(tr => {
     set(tr, !tr.classList.contains("open")); sync();
   });
   tr.addEventListener("keydown", e => {
+    if (e.target !== tr) return;  // keys on the copy button are its own
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); }
   });
 });
@@ -127,15 +146,32 @@ toggleAll.addEventListener("click", () => {
   const on = toggleAll.textContent === "Expand all";
   shown().forEach(tr => set(tr, on)); sync();
 });
+// Filters: a row shows when it matches both the type and the MAC filter.
+// MACs are compared as bare hex digits, so "584b", "58:4b" and "58-4B" all match.
+const hex = s => s.toLowerCase().replace(/[^0-9a-f]/g, "");
+function applyFilters() {
+  const mac = hex(macFilter.value);
+  rows.forEach(tr => {
+    tr.hidden = (typeValue !== "" && tr.dataset.type !== typeValue) || (mac !== "" && !hex(tr.dataset.mac).includes(mac));
+  });
+  macFilter.classList.toggle("active", mac !== "");
+  noMatch.hidden = shown().length > 0;
+  try {
+    sessionStorage.setItem("lan-spy-type", typeValue);
+    sessionStorage.setItem("lan-spy-mac", macFilter.value);
+  } catch (e) {}
+  sync();
+}
+macFilter.addEventListener("input", applyFilters);
+document.getElementById("clear-filters").addEventListener("click", () => { macFilter.value = ""; pickType(""); });
 // Type filter: a listbox instead of a <select>, so the options can show the device icons.
 function pickType(value) {
   const opt = typeOptions.find(o => o.dataset.value === value) || typeOptions[0];
   typeOptions.forEach(o => o.setAttribute("aria-selected", o === opt));
   typeButton.innerHTML = opt.innerHTML;
   typeButton.classList.toggle("active", opt.dataset.value !== "");
-  rows.forEach(tr => { tr.hidden = opt.dataset.value !== "" && tr.dataset.type !== opt.dataset.value; });
-  try { sessionStorage.setItem("lan-spy-type", opt.dataset.value); } catch (e) {}
-  sync();
+  typeValue = opt.dataset.value;
+  applyFilters();
 }
 function showTypes(on) {
   typeList.hidden = !on;
@@ -159,8 +195,29 @@ typeList.addEventListener("keydown", e => {
 });
 document.addEventListener("click", e => { if (!typeList.parentElement.contains(e.target)) showTypes(false); });
 let savedType = "";
-try { savedType = sessionStorage.getItem("lan-spy-type") || ""; } catch (e) {}
+try {
+  savedType = sessionStorage.getItem("lan-spy-type") || "";
+  macFilter.value = sessionStorage.getItem("lan-spy-mac") || "";
+} catch (e) {}
 pickType(savedType);
+// Copy buttons. navigator.clipboard needs a secure context; fall back to execCommand otherwise.
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  const ta = Object.assign(document.createElement("textarea"), { value: text });
+  ta.style.cssText = "position:fixed;opacity:0";
+  document.body.append(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  ta.remove();
+  return ok ? Promise.resolve() : Promise.reject(new Error("copy failed"));
+}
+document.querySelectorAll(".copy").forEach(b => b.addEventListener("click", e => {
+  e.stopPropagation();  // don't expand or collapse the row
+  copyText(b.dataset.copy).then(() => {
+    b.classList.add("done");
+    setTimeout(() => b.classList.remove("done"), 1500);
+  }, () => { b.title = "Copying failed"; });
+}));
 JS;
 
 // Inline SVG bodies (24x24 viewBox, stroked) and a label per device type.
@@ -430,6 +487,15 @@ function type_option(string $value, string $label, string $iconBody, int $count)
         . esc($label) . '<span class="count">' . $count . '</span></li>';
 }
 
+/** A small button that copies $text to the clipboard; it shows a check mark once copied. */
+function copy_button(string $text, string $label): string
+{
+    return '<button type="button" class="copy" data-copy="' . esc($text) . '" title="' . esc($label) . '"'
+        . ' aria-label="' . esc("$label $text") . '"><svg class="to-copy" viewBox="0 0 24 24" aria-hidden="true">'
+        . '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'
+        . '</svg><svg class="copied" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>';
+}
+
 function device_row(array $d, string $kind, bool $online, bool $merged, int $totalReports, array $customNames): string
 {
     $names = [$d['hostname'] ?? null, $d['netbios'] ?? null];
@@ -455,6 +521,9 @@ function device_row(array $d, string $kind, bool $online, bool $merged, int $tot
     }
 
     $mac = esc(($d['mac'] ?? '') ?: '—');
+    if (present($d['mac'] ?? null)) {
+        $mac .= copy_button($d['mac'], 'Copy MAC address');
+    }
     if (!empty($d['mac_locally_administered'])) {
         $mac .= '<div class="muted more">randomized</div>';
     }
@@ -472,13 +541,14 @@ function device_row(array $d, string $kind, bool $online, bool $merged, int $tot
     }
 
     $key = esc(($d['mac'] ?? '') ?: $d['ip']);
+    $macAttr = esc($d['mac'] ?? '');
     $up = $online ? ' up' : '';
     $ip = esc($d['ip']);
     $extraHtml = implode('<br>', $extra);
     $ports = ports_html($d);
     $os = os_html($d);
     return <<<HTML
-        <tr class="$rowClass" data-key="$key" data-type="$kind" tabindex="0" aria-expanded="false">
+        <tr class="$rowClass" data-key="$key" data-type="$kind" data-mac="$macAttr" tabindex="0" aria-expanded="false">
         <td class="mono"><span class="chev">›</span><span class="dot$up"></span>$ip</td>
         <td><div class="device">$icon<div>$who<div class="muted more">$extraHtml</div></div></div></td>
         <td class="mono">$mac</td>
@@ -568,6 +638,7 @@ function render(array $data, int $refresh, array $customNames): string
         <div class="sub">$sub</div>
         <div class="stats">$statsHtml</div>
         <div class="toolbar">
+        <div class="filters">
         <div class="filter"><span id="type-label">Type</span>
         <div class="type-menu">
         <button type="button" id="type-button" aria-haspopup="listbox" aria-expanded="false"
@@ -575,17 +646,21 @@ function render(array $data, int $refresh, array $customNames): string
         <ul id="type-list" role="listbox" aria-labelledby="type-label" hidden>$typeOptions</ul>
         </div>
         </div>
+        <label class="filter">MAC <input type="search" id="mac-filter" placeholder="e.g. 58:4b" spellcheck="false"
+          autocomplete="off"></label>
+        </div>
         <button type="button" id="toggle-all">Expand all</button>
         </div>
         <div class="wrap">
         <table>
-        <colgroup><col style="width:165px"><col style="width:20%"><col style="width:168px"><col>
+        <colgroup><col style="width:165px"><col style="width:20%"><col style="width:194px"><col>
         <col style="width:17%"><col style="width:95px"><col style="width:90px"></colgroup>
         <thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th>$seenHeader</th></tr></thead>
         <tbody>
         $rows
         </tbody>
         </table>
+        <div class="empty" id="no-match" hidden>No devices match the filters.<button type="button" id="clear-filters">Clear filters</button></div>
         </div>
         <p class="muted">Generated $generated by render-html.php.
         Click a row for details. Greyed-out rows were not seen in the latest scan; a yellow edge marks online

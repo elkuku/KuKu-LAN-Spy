@@ -135,8 +135,12 @@ IPP a printer), then words in the custom name (`Cam ...`, `Pixel ...`,
 the guess is wrong, set the type in brackets before the name, e.g.
 `aa:bb:cc:dd:ee:ff [camera] Front door`; `device-names.example.txt` lists the
 types. The "Type" menu above the table shows only devices of one type; it
-lists the types present with their counts, and the choice is kept across the
-page's auto-refresh.
+lists the types present with their counts. The "MAC" box next to it shows only
+devices whose MAC contains what you type; separators and case don't matter, so
+`584b` finds `58:4b:...`. Both filters combine, turn yellow while active and are
+kept across the page's auto-refresh; if no device matches, the table says so
+and offers a button to clear them. The button next to each MAC copies it to
+the clipboard.
 `render-html.php` (and so `lan-watch.sh`) picks the file up automatically;
 `--names` points to another one. `device-names.txt` is git-ignored since it
 lists your MACs.
