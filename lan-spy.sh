@@ -30,6 +30,17 @@ trap 'rm -rf "$TMP"' EXIT
 
 log() { printf '[lan-spy] %s\n' "$*" >&2; }
 
+# A framed message that stands out from the progress lines; bold green on a terminal.
+banner() {
+    local frame
+    frame=$(printf '%*s' $(( ${#1} + 4 )) '' | tr ' ' '=')
+    if [[ -t 2 ]]; then
+        printf '\n\e[1;32m%s\n  %s\n%s\e[0m\n\n' "$frame" "$1" "$frame" >&2
+    else
+        printf '\n%s\n  %s\n%s\n\n' "$frame" "$1" "$frame" >&2
+    fi
+}
+
 log "Interface $IFACE, network $CIDR"
 
 log "arp-scan..."
@@ -121,4 +132,6 @@ mkdir -p "$RAW" && cp "$TMP"/*.xml "$RAW"/ 2>/dev/null
 
 # Hand the report back to the user who ran sudo.
 [[ -n "${SUDO_USER:-}" ]] && chown -R "$SUDO_USER": "$OUT" "$RAW"
+DEVICES=$(grep -m1 -oE '"device_count": [0-9]+' "$OUT" | grep -oE '[0-9]+$')
+banner "Scan finished at $(date +%H:%M:%S) after $((SECONDS / 60))m $((SECONDS % 60))s: ${DEVICES:-?} devices"
 log "Report written to $OUT"
