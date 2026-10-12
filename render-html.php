@@ -18,13 +18,13 @@ const CSS = <<<'CSS'
 :root {
   --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #6b7280; --border: #e5e7eb;
   --chip: #eef2ff; --chip-text: #3730a3; --hint: #ecfdf5; --hint-text: #065f46;
-  --up: #16a34a; --down: #9ca3af; --warn: #b45309; --name: #1d4ed8; --unnamed: #eab308;
+  --up: #16a34a; --down: #9ca3af; --warn: #b45309; --name: #1d4ed8; --unnamed: #eab308; --filtered: #eab308;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #111317; --card: #1a1d23; --text: #e6e8eb; --muted: #9aa1ab; --border: #2b3038;
     --chip: #262b45; --chip-text: #c7d2fe; --hint: #10302a; --hint-text: #a7f3d0;
-    --up: #22c55e; --down: #4b5563; --warn: #f59e0b; --name: #93c5fd; --unnamed: #facc15;
+    --up: #22c55e; --down: #4b5563; --warn: #f59e0b; --name: #93c5fd; --unnamed: #facc15; --filtered: #facc15;
   }
 }
 * { box-sizing: border-box; }
@@ -63,9 +63,21 @@ tr.unnamed td:first-child { box-shadow: inset 3px 0 0 var(--unnamed); }
   stroke-linecap: round; stroke-linejoin: round; }
 tr.named .icon { color: var(--name); }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
-.toolbar label { color: var(--muted); font-size: 12px; }
-.toolbar button, .toolbar select { font: inherit; font-size: 12px; color: var(--text); background: var(--card);
+.filter { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.toolbar button { font: inherit; font-size: 12px; color: var(--text); background: var(--card);
   border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.type-menu { position: relative; }
+#type-button, .type-menu li { display: flex; align-items: center; gap: 8px; }
+#type-button::after { content: "▾"; color: var(--muted); }
+#type-button.active { border-color: var(--filtered); background: color-mix(in srgb, var(--filtered) 22%, var(--card)); }
+.type-menu ul { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; min-width: 100%; margin: 0;
+  padding: 4px; list-style: none; white-space: nowrap; background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / .15); }
+.type-menu li { padding: 5px 10px; border-radius: 5px; color: var(--text); font-size: 13px; cursor: pointer; }
+.type-menu li:hover, .type-menu li:focus { background: color-mix(in srgb, var(--border) 60%, transparent); outline: none; }
+.type-menu li[aria-selected="true"] { color: var(--name); font-weight: 600; }
+.type-menu .icon { width: 18px; height: 18px; margin: 0; color: inherit; }
+.type-menu .count { margin-left: auto; padding-left: 12px; color: var(--muted); font-weight: normal; }
 tbody tr { cursor: pointer; }
 tbody tr:hover td { background: color-mix(in srgb, var(--border) 35%, transparent); }
 tbody tr:focus-visible { outline: 2px solid var(--name); outline-offset: -2px; }
@@ -88,7 +100,9 @@ let open;
 try { open = new Set(JSON.parse(sessionStorage.getItem(KEY) || "[]")); } catch (e) { open = new Set(); }
 const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify([...open])); } catch (e) {} };
 const toggleAll = document.getElementById("toggle-all");
-const typeFilter = document.getElementById("type-filter");
+const typeButton = document.getElementById("type-button");
+const typeList = document.getElementById("type-list");
+const typeOptions = [...typeList.children];
 const shown = () => rows.filter(r => !r.hidden);
 function set(tr, on) {
   tr.classList.toggle("open", on);
@@ -113,17 +127,40 @@ toggleAll.addEventListener("click", () => {
   const on = toggleAll.textContent === "Expand all";
   shown().forEach(tr => set(tr, on)); sync();
 });
-function applyFilter() {
-  rows.forEach(tr => { tr.hidden = typeFilter.value !== "" && tr.dataset.type !== typeFilter.value; });
-  try { sessionStorage.setItem("lan-spy-type", typeFilter.value); } catch (e) {}
+// Type filter: a listbox instead of a <select>, so the options can show the device icons.
+function pickType(value) {
+  const opt = typeOptions.find(o => o.dataset.value === value) || typeOptions[0];
+  typeOptions.forEach(o => o.setAttribute("aria-selected", o === opt));
+  typeButton.innerHTML = opt.innerHTML;
+  typeButton.classList.toggle("active", opt.dataset.value !== "");
+  rows.forEach(tr => { tr.hidden = opt.dataset.value !== "" && tr.dataset.type !== opt.dataset.value; });
+  try { sessionStorage.setItem("lan-spy-type", opt.dataset.value); } catch (e) {}
   sync();
 }
-try {
-  const saved = sessionStorage.getItem("lan-spy-type");
-  if (saved && [...typeFilter.options].some(o => o.value === saved)) typeFilter.value = saved;
-} catch (e) {}
-typeFilter.addEventListener("change", applyFilter);
-applyFilter();
+function showTypes(on) {
+  typeList.hidden = !on;
+  typeButton.setAttribute("aria-expanded", on);
+  if (on) typeOptions.find(o => o.getAttribute("aria-selected") === "true").focus();
+}
+typeButton.addEventListener("click", () => showTypes(typeList.hidden));
+typeButton.addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); showTypes(true); }
+});
+typeOptions.forEach(o => o.addEventListener("click", () => {
+  pickType(o.dataset.value); showTypes(false); typeButton.focus();
+}));
+typeList.addEventListener("keydown", e => {
+  const i = typeOptions.indexOf(document.activeElement), n = typeOptions.length;
+  const move = { ArrowDown: i + 1, ArrowUp: i - 1 + n, Home: 0, End: n - 1 }[e.key];
+  if (move !== undefined) { e.preventDefault(); typeOptions[move % n].focus(); }
+  else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); document.activeElement.click(); }
+  else if (e.key === "Escape") { showTypes(false); typeButton.focus(); }
+  else if (e.key === "Tab") showTypes(false);
+});
+document.addEventListener("click", e => { if (!typeList.parentElement.contains(e.target)) showTypes(false); });
+let savedType = "";
+try { savedType = sessionStorage.getItem("lan-spy-type") || ""; } catch (e) {}
+pickType(savedType);
 JS;
 
 // Inline SVG bodies (24x24 viewBox, stroked) and a label per device type.
@@ -150,6 +187,10 @@ const ICONS = [
     'unknown' => ['Unknown device', '<circle cx="12" cy="12" r="10"/>'
                                     . '<path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/>'],
 ];
+
+// Icon for the "All types" entry of the type filter.
+const ALL_TYPES_ICON = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>'
+                       . '<rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
 
 // Words in a custom name that give away the device type, checked in this order.
 const NAME_KEYWORDS = [
@@ -381,6 +422,14 @@ function icon_html(string $kind): string
         . '<svg viewBox="0 0 24 24" role="img" aria-label="' . esc($label) . '">' . $body . '</svg></span>';
 }
 
+/** One entry of the type filter list: icon, label and device count. */
+function type_option(string $value, string $label, string $iconBody, int $count): string
+{
+    return '<li role="option" tabindex="-1" data-value="' . esc($value) . '">'
+        . '<span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true">' . $iconBody . '</svg></span>'
+        . esc($label) . '<span class="count">' . $count . '</span></li>';
+}
+
 function device_row(array $d, string $kind, bool $online, bool $merged, int $totalReports, array $customNames): string
 {
     $names = [$d['hostname'] ?? null, $d['netbios'] ?? null];
@@ -474,10 +523,10 @@ function render(array $data, int $refresh, array $customNames): string
         $kinds[$i] = $kind ?? device_type($d, $custom);
     }
     $counts = array_count_values($kinds);
-    $typeOptions = '<option value="">All types (' . count($devices) . ')</option>';
-    foreach (ICONS as $k => [$label]) {
+    $typeOptions = type_option('', 'All types', ALL_TYPES_ICON, count($devices));
+    foreach (ICONS as $k => [$label, $body]) {
         if (!empty($counts[$k])) {
-            $typeOptions .= '<option value="' . $k . '">' . esc($label) . " ({$counts[$k]})</option>";
+            $typeOptions .= type_option($k, $label, $body, $counts[$k]);
         }
     }
 
@@ -519,7 +568,13 @@ function render(array $data, int $refresh, array $customNames): string
         <div class="sub">$sub</div>
         <div class="stats">$statsHtml</div>
         <div class="toolbar">
-        <label>Type <select id="type-filter">$typeOptions</select></label>
+        <div class="filter"><span id="type-label">Type</span>
+        <div class="type-menu">
+        <button type="button" id="type-button" aria-haspopup="listbox" aria-expanded="false"
+          aria-labelledby="type-label type-button"></button>
+        <ul id="type-list" role="listbox" aria-labelledby="type-label" hidden>$typeOptions</ul>
+        </div>
+        </div>
         <button type="button" id="toggle-all">Expand all</button>
         </div>
         <div class="wrap">
