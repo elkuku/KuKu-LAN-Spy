@@ -134,7 +134,9 @@ IPP a printer), then words in the custom name (`Cam ...`, `Pixel ...`,
 `Luz ...`), then weaker hints such as a Tuya vendor or a randomized MAC. If
 the guess is wrong, set the type in brackets before the name, e.g.
 `aa:bb:cc:dd:ee:ff [camera] Front door`; `device-names.example.txt` lists the
-types.
+types. The "Type" menu above the table shows only devices of one type; it
+lists the types present with their counts, and the choice is kept across the
+page's auto-refresh.
 `render-html.py` (and so `lan-watch.sh`) picks the file up automatically;
 `--names` points to another one. `device-names.txt` is git-ignored since it
 lists your MACs.

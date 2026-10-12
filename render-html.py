@@ -11,6 +11,7 @@ import argparse
 import ipaddress
 import json
 import sys
+from collections import Counter
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -65,8 +66,9 @@ tr.unnamed td:first-child { box-shadow: inset 3px 0 0 var(--unnamed); }
 .icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7;
   stroke-linecap: round; stroke-linejoin: round; }
 tr.named .icon { color: var(--name); }
-.toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
-.toolbar button { font: inherit; font-size: 12px; color: var(--text); background: var(--card);
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.toolbar label { color: var(--muted); font-size: 12px; }
+.toolbar button, .toolbar select { font: inherit; font-size: 12px; color: var(--text); background: var(--card);
   border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
 tbody tr { cursor: pointer; }
 tbody tr:hover td { background: color-mix(in srgb, var(--border) 35%, transparent); }
@@ -90,13 +92,15 @@ let open;
 try { open = new Set(JSON.parse(sessionStorage.getItem(KEY) || "[]")); } catch (e) { open = new Set(); }
 const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify([...open])); } catch (e) {} };
 const toggleAll = document.getElementById("toggle-all");
+const typeFilter = document.getElementById("type-filter");
+const shown = () => rows.filter(r => !r.hidden);
 function set(tr, on) {
   tr.classList.toggle("open", on);
   tr.setAttribute("aria-expanded", on);
   on ? open.add(tr.dataset.key) : open.delete(tr.dataset.key);
 }
 function sync() {
-  toggleAll.textContent = rows.every(r => r.classList.contains("open")) ? "Collapse all" : "Expand all";
+  toggleAll.textContent = shown().every(r => r.classList.contains("open")) ? "Collapse all" : "Expand all";
   save();
 }
 rows.forEach(tr => {
@@ -111,9 +115,19 @@ rows.forEach(tr => {
 });
 toggleAll.addEventListener("click", () => {
   const on = toggleAll.textContent === "Expand all";
-  rows.forEach(tr => set(tr, on)); sync();
+  shown().forEach(tr => set(tr, on)); sync();
 });
-sync();
+function applyFilter() {
+  rows.forEach(tr => { tr.hidden = typeFilter.value !== "" && tr.dataset.type !== typeFilter.value; });
+  try { sessionStorage.setItem("lan-spy-type", typeFilter.value); } catch (e) {}
+  sync();
+}
+try {
+  const saved = sessionStorage.getItem("lan-spy-type");
+  if (saved && [...typeFilter.options].some(o => o.value === saved)) typeFilter.value = saved;
+} catch (e) {}
+typeFilter.addEventListener("change", applyFilter);
+applyFilter();
 """
 
 # Inline SVG bodies (24x24 viewBox, stroked) and a label per device type.
@@ -275,13 +289,13 @@ def icon_html(kind):
             f'<svg viewBox="0 0 24 24" role="img" aria-label="{escape(label)}">{body}</svg></span>')
 
 
-def device_row(d, online, merged, total_reports, custom_names):
+def device_row(d, kind, online, merged, total_reports, custom_names):
     names = [d.get("hostname"), d.get("netbios")] + [m.get("hostname") for m in d.get("mdns") or []]
     names = list(dict.fromkeys(n for n in names if n))
     who = escape(d.get("vendor") or ("Private MAC" if d.get("mac_locally_administered") else "Unknown vendor"))
     extra = [escape(n) for n in names]
-    custom, kind = custom_name(d, custom_names)
-    icon = icon_html(kind or device_type(d, custom))
+    custom, _ = custom_name(d, custom_names)
+    icon = icon_html(kind)
     if custom:
         extra.insert(0, who)
         who = f'<span class="name">{escape(custom)}</span>'
@@ -305,7 +319,7 @@ def device_row(d, online, merged, total_reports, custom_names):
     else:
         seen = escape(d.get("deep_scan") or "")
 
-    return f"""<tr class="{row_class}" data-key="{escape(d.get("mac") or d["ip"])}" tabindex="0" aria-expanded="false">
+    return f"""<tr class="{row_class}" data-key="{escape(d.get("mac") or d["ip"])}" data-type="{kind}" tabindex="0" aria-expanded="false">
 <td class="mono"><span class="chev">›</span><span class="dot{' up' if online else ''}"></span>{escape(d["ip"])}</td>
 <td><div class="device">{icon}<div>{who}<div class="muted more">{"<br>".join(extra)}</div></div></div></td>
 <td class="mono">{mac}</td>
@@ -333,7 +347,15 @@ def render(data, refresh, custom_names):
     online = sum(1 for d in devices if is_online(d))
     open_ports = sum(1 for d in devices for p in d.get("ports") or [] if p.get("state") == "open")
 
-    rows = "\n".join(device_row(d, is_online(d), merged, total, custom_names) for d in devices)
+    kinds = {}
+    for d in devices:
+        custom, kind = custom_name(d, custom_names)
+        kinds[id(d)] = kind or device_type(d, custom)
+    counts = Counter(kinds.values())
+    type_options = f'<option value="">All types ({len(devices)})</option>' + "".join(
+        f'<option value="{k}">{escape(ICONS[k][0])} ({counts[k]})</option>' for k in ICONS if counts[k])
+
+    rows = "\n".join(device_row(d, kinds[id(d)], is_online(d), merged, total, custom_names) for d in devices)
     meta_refresh = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
     stats = [
         (len(devices), "devices known" if merged else "devices"),
@@ -358,7 +380,10 @@ def render(data, refresh, custom_names):
 <h1>LAN Devices</h1>
 <div class="sub">{escape(network or "")} · gateway {escape(gateway or "?")} · latest scan {escape(fmt_time(latest))}</div>
 <div class="stats">{stats_html}</div>
-<div class="toolbar"><button type="button" id="toggle-all">Expand all</button></div>
+<div class="toolbar">
+<label>Type <select id="type-filter">{type_options}</select></label>
+<button type="button" id="toggle-all">Expand all</button>
+</div>
 <div class="wrap">
 <table>
 <colgroup><col style="width:165px"><col style="width:20%"><col style="width:168px"><col>
