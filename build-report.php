@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+
 /**
  * Build the lan-spy JSON report from the raw scan files lan-spy.sh collects.
  *
@@ -14,6 +15,6 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/src/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
-exit((new LanSpy\Build\BuildCommand())->run($argv));
+exit((new LanSpy\Build\BuildCommand())->run($_SERVER['argv']));

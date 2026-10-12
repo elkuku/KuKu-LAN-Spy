@@ -9,8 +9,15 @@ and as an HTML page.
 - `avahi-browse` (avahi) for mDNS/Bonjour discovery
 - `nmblookup` (smbclient) for NetBIOS names
 - PHP 8.1 or newer (CLI, with the bundled SimpleXML, mbstring and ctype extensions)
+- [Composer](https://getcomposer.org/)
 
-On Arch Linux: `sudo pacman -S arp-scan nmap avahi smbclient php`
+On Arch Linux: `sudo pacman -S arp-scan nmap avahi smbclient php composer`
+
+Then install the PHP autoloader once, in the project folder:
+
+```sh
+composer install --no-dev
+```
 
 ## Scripts
 
@@ -152,13 +159,30 @@ lists your MACs.
 ## Code layout
 
 The three PHP scripts are thin entry points; the code lives in `src/`, one
-class per file, loaded by `src/autoload.php` (no Composer needed):
+class per file under the `LanSpy\` namespace, loaded by Composer's autoloader:
 
 - `src/Build/` — `build-report.php`: reads the scan files into the JSON report
 - `src/Merge/` — `merge-reports.php`: merges reports into the inventory
 - `src/Render/` — `render-html.php`: turns a report into the HTML page, using
   the templates in `templates/`
 - `src/Util/` — shared helpers (IP sorting, JSON output, timezone, strings)
+
+## Development
+
+`composer install` (without `--no-dev`) also installs the code checks:
+
+```sh
+composer check       # all of the below, without changing anything
+composer cs          # coding style (PHP-CS-Fixer, PER-CS)
+composer rector      # suggested modernizations (Rector)
+composer analyse     # static analysis (PHPStan, level 8)
+
+composer cs:fix      # apply the coding style fixes
+composer rector:fix  # apply the Rector changes
+```
+
+The templates in `templates/` are left out of the coding style check, since
+their whitespace ends up in the HTML.
 
 ## Typical use
 

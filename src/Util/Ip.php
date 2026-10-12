@@ -6,11 +6,11 @@ namespace LanSpy\Util;
 
 final class Ip
 {
-    /** Compare two IP addresses numerically, IPv4 before IPv6; for usort(). */
+    /** Compare two IP addresses numerically, IPv4 before IPv6, invalid ones first; for usort(). */
     public static function compare(string $left, string $right): int
     {
-        $left = inet_pton($left);
-        $right = inet_pton($right);
+        $left = inet_pton($left) ?: '';
+        $right = inet_pton($right) ?: '';
         return [strlen($left), $left] <=> [strlen($right), $right];
     }
 }

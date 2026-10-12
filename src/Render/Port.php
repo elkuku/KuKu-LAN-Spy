@@ -15,13 +15,18 @@ final class Port
         public readonly ?string $service,
         public readonly ?string $version,
         public readonly ?string $hint,
-    ) {
-    }
+    ) {}
 
+    /** @param array<string, mixed> $port */
     public static function fromArray(array $port): self
     {
-        return new self((int) $port['port'], Text::orNull($port['state'] ?? null), Text::orNull($port['service'] ?? null),
-            Text::orNull($port['version'] ?? null), Text::orNull($port['hint'] ?? null));
+        return new self(
+            (int) $port['port'],
+            Text::orNull($port['state'] ?? null),
+            Text::orNull($port['service'] ?? null),
+            Text::orNull($port['version'] ?? null),
+            Text::orNull($port['hint'] ?? null)
+        );
     }
 
     public function isOpen(): bool

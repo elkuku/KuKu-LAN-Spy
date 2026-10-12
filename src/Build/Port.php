@@ -24,8 +24,7 @@ final class Port implements JsonSerializable
         public readonly ?string $service,
         public readonly ?string $version,
         public readonly ?string $hint = null,
-    ) {
-    }
+    ) {}
 
     public static function fromNmap(SimpleXMLElement $element): self
     {
@@ -41,15 +40,27 @@ final class Port implements JsonSerializable
                 Text::present(...),
             ));
         }
-        return new self($port, NmapXml::attr($element, 'protocol'), $state, NmapXml::attr($svc, 'name'),
-            Text::present($version) ? $version : null, $state === 'open' ? self::hintFor($port) : null);
+        return new self(
+            $port,
+            NmapXml::attr($element, 'protocol'),
+            $state,
+            NmapXml::attr($svc, 'name'),
+            Text::present($version) ? $version : null,
+            $state === 'open' ? self::hintFor($port) : null
+        );
     }
 
     /** @param list<string> $procs the processes listening on it */
     public static function local(int $port, array $procs): self
     {
-        return new self($port, 'tcp', 'open', getservbyport($port, 'tcp') ?: null, implode(', ', $procs) ?: null,
-            self::hintFor($port));
+        return new self(
+            $port,
+            'tcp',
+            'open',
+            getservbyport($port, 'tcp') ?: null,
+            implode(', ', $procs) ?: null,
+            self::hintFor($port)
+        );
     }
 
     public static function hintFor(int $port): ?string
@@ -57,6 +68,7 @@ final class Port implements JsonSerializable
         return self::IOT_HINTS[$port] ?? null;
     }
 
+    /** @return array<string, mixed> */
     public function jsonSerialize(): array
     {
         $out = ['port' => $this->port, 'proto' => $this->proto, 'state' => $this->state,

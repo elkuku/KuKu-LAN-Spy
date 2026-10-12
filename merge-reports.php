@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+
 /**
  * Merge lan-spy JSON reports into one device inventory.
  *
@@ -13,6 +14,6 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/src/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
-exit((new LanSpy\Merge\MergeCommand())->run($argv));
+exit((new LanSpy\Merge\MergeCommand())->run($_SERVER['argv']));

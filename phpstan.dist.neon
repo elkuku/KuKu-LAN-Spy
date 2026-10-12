@@ -1,0 +1,7 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - build-report.php
+        - merge-reports.php
+        - render-html.php

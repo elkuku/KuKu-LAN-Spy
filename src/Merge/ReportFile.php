@@ -10,12 +10,12 @@ use RuntimeException;
 /** One lan-spy report as read from disk. */
 final class ReportFile
 {
+    /** @param array<string, mixed> $data the decoded report */
     public function __construct(
         public readonly string $path,
         public readonly string $date,
         public readonly array $data,
-    ) {
-    }
+    ) {}
 
     /** @throws RuntimeException|JsonException if the file cannot be read or parsed */
     public static function load(string $path): self
@@ -28,7 +28,7 @@ final class ReportFile
         return new self($path, $data['scan']['date'] ?? throw new RuntimeException('no scan date'), $data);
     }
 
-    /** @return list<array> */
+    /** @return list<array<string, mixed>> */
     public function devices(): array
     {
         return $this->data['devices'] ?? [];

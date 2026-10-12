@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LanSpy\Render;
 
+use RuntimeException;
+
 /** Renders the PHP templates in the templates/ folder of the project. */
 final class Template
 {
@@ -16,13 +18,17 @@ final class Template
             extract($templateVars, EXTR_SKIP);
             ob_start();
             require $templateFile;
-            return ob_get_clean();
+            return (string) ob_get_clean();
         })(self::DIR . "/$name", $vars);
     }
 
     /** A file from templates/ as it is, for inlining CSS and JS. */
     public static function file(string $name): string
     {
-        return file_get_contents(self::DIR . "/$name");
+        $contents = file_get_contents(self::DIR . "/$name");
+        if ($contents === false) {
+            throw new RuntimeException("cannot read template $name");
+        }
+        return $contents;
     }
 }

@@ -101,7 +101,7 @@ enum DeviceType: string
     /** The type a custom name gives away, if any. */
     public static function fromName(string $name): ?self
     {
-        $words = preg_split('/\s+/u', mb_strtolower(str_replace(['-', '_'], ' ', $name)), -1, PREG_SPLIT_NO_EMPTY);
+        $words = preg_split('/\s+/u', mb_strtolower(str_replace(['-', '_'], ' ', $name)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         foreach (self::NAME_ORDER as $type) {
             if (array_intersect($words, $type->keywords())) {
                 return $type;
@@ -120,10 +120,10 @@ enum DeviceType: string
             return self::Computer;
         }
         $openPorts = $device->openPorts();
-        $isOpen = fn(int ...$numbers): bool => (bool) array_filter($openPorts, fn(Port $port) => in_array($port->port, $numbers, true));
+        $isOpen = fn(int ...$numbers): bool => (bool) array_filter($openPorts, fn(Port $port): bool => in_array($port->port, $numbers, true));
         // avahi-browse may report "_ipp._tcp" or its readable name "Internet Printer", so match loosely.
-        $mdns = mb_strtolower(implode(' ', array_map(fn(MdnsEntry $entry) => $entry->service ?? '', $device->mdns)));
-        $rtsp = array_filter($openPorts, fn(Port $port) => str_contains($port->service ?? '', 'rtsp'));
+        $mdns = mb_strtolower(implode(' ', array_map(fn(MdnsEntry $entry): string => $entry->service ?? '', $device->mdns)));
+        $rtsp = array_filter($openPorts, fn(Port $port): bool => str_contains($port->service ?? '', 'rtsp'));
         $osName = mb_strtolower($device->os->bestGuess ?? '');
         $fromName = $name !== null ? self::fromName($name) : null;
 
@@ -131,12 +131,12 @@ enum DeviceType: string
             $isOpen(554) || $rtsp => self::Camera,
             $isOpen(8009) || Text::containsAny($mdns, 'googlecast', 'google cast', 'airplay', 'androidtvremote') => self::Tv,
             $isOpen(631, 9100) || Text::containsAny($mdns, '_ipp', 'printer', 'pdl-datastream') => self::Printer,
-            $fromName !== null => $fromName,
+            $fromName instanceof self => $fromName,
             Text::containsAny($mdns, 'raop', 'airtunes', 'spotify', 'sonos') => self::Speaker,
             $isOpen(6668, 9999) || Text::containsAny(mb_strtolower($device->vendor ?? ''), 'tuya', 'espressif', 'shelly', 'sonoff')
                 => self::Plug,
             $isOpen(53) => self::Wifi,
-            str_contains($osName, 'android') || in_array('ios', preg_split('/\s+/u', $osName), true) => self::Phone,
+            str_contains($osName, 'android') || in_array('ios', preg_split('/\s+/u', $osName) ?: [], true) => self::Phone,
             Text::containsAny($osName, 'windows', 'macos', 'mac os') => self::Computer,
             $device->macRandomized => self::Phone,
             default => self::Unknown,

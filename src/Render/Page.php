@@ -15,8 +15,7 @@ final class Page
         private readonly Report $report,
         private readonly DeviceNames $names,
         private readonly int $refresh,
-    ) {
-    }
+    ) {}
 
     public function render(): string
     {

@@ -16,7 +16,7 @@ final class NmapXml
 
     public static function attr(?SimpleXMLElement $element, string $name): ?string
     {
-        return $element !== null && isset($element[$name]) ? (string) $element[$name] : null;
+        return $element instanceof SimpleXMLElement && isset($element[$name]) ? (string) $element[$name] : null;
     }
 
     public static function hostIp(SimpleXMLElement $host): ?string

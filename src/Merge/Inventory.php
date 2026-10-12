@@ -12,7 +12,7 @@ final class Inventory
     /** @var array<string, MergedDevice> keyed by MAC, or by IP when there is no MAC */
     private array $devices = [];
 
-    /** @param list<ReportFile> $reports oldest first, so newer values overwrite */
+    /** @param non-empty-list<ReportFile> $reports oldest first, so newer values overwrite */
     public function __construct(private readonly array $reports)
     {
         foreach ($reports as $report) {
@@ -25,14 +25,15 @@ final class Inventory
         }
     }
 
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
         $newest = $this->reports[array_key_last($this->reports)]->data['scan'];
         $devices = array_values($this->devices);
-        usort($devices, fn(MergedDevice $left, MergedDevice $right) => Ip::compare($left->ip, $right->ip));
+        usort($devices, fn(MergedDevice $left, MergedDevice $right): int => Ip::compare($left->ip, $right->ip));
         return [
             'merged_from' => array_map(
-                fn(ReportFile $report) => ['file' => $report->path, 'date' => $report->date, 'devices' => count($report->devices())],
+                fn(ReportFile $report): array => ['file' => $report->path, 'date' => $report->date, 'devices' => count($report->devices())],
                 $this->reports,
             ),
             'network' => $newest['network'] ?? null,

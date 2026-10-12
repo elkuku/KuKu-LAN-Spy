@@ -20,9 +20,9 @@ final class ReportBuilder
         private readonly string $localIp,
         private readonly string $gateway,
         private readonly string $myhost,
-    ) {
-    }
+    ) {}
 
+    /** @return array<string, mixed> the report, ready for JSON */
     public function build(string $network): array
     {
         $this->addArpScan();
@@ -35,7 +35,7 @@ final class ReportBuilder
         $this->addRolesAndVendors();
 
         $list = array_values($this->devices);
-        usort($list, fn(Device $left, Device $right) => Ip::compare($left->ip, $right->ip));
+        usort($list, fn(Device $left, Device $right): int => Ip::compare($left->ip, $right->ip));
         return [
             'scan' => [
                 'date' => date('c'),
@@ -63,11 +63,11 @@ final class ReportBuilder
 
     private function addDiscovery(): void
     {
-        foreach (self::upHosts($this->scan->nmapHosts('discovery.xml')) as $ip => $nmapHost) {
+        foreach ($this->upHosts($this->scan->nmapHosts('discovery.xml')) as $ip => $nmapHost) {
             $device = $this->device($ip);
             $device->seenBy[] = 'nmap';
             $macAddress = NmapXml::first($nmapHost, "address[@addrtype='mac']");
-            if ($macAddress !== null) {
+            if ($macAddress instanceof SimpleXMLElement) {
                 $device->mac = strtolower((string) NmapXml::attr($macAddress, 'addr'));
                 $device->vendor = NmapXml::attr($macAddress, 'vendor') ?: $device->vendor;
             }
@@ -92,10 +92,10 @@ final class ReportBuilder
             if (count($fields) < 10 || (!isset($this->devices[$fields[7]]) && $fields[7] !== $this->localIp)) {
                 continue;
             }
-            $txt = array_values(array_filter(array_map(fn(string $item) => trim($item, '"'), explode('" "', $fields[9])), Text::present(...)));
+            $txt = array_values(array_filter(array_map(fn(string $item): string => trim($item, '"'), explode('" "', $fields[9])), Text::present(...)));
             $entry = ['name' => $fields[3], 'service' => $fields[4], 'hostname' => $fields[6],
                 'port' => ctype_digit($fields[8]) ? (int) $fields[8] : null];
-            if ($txt) {
+            if ($txt !== []) {
                 $entry['txt'] = $txt;
             }
             $device = $this->device($fields[7]);
@@ -141,8 +141,8 @@ final class ReportBuilder
             $device->portsNotShown = NmapXml::attr($extra, 'count') . ' ' . NmapXml::attr($extra, 'state');
         }
         $matches = isset($nmapHost->os[0]) ? iterator_to_array($nmapHost->os[0]->osmatch, false) : [];
-        if ($matches) {
-            $device->os = self::nmapOs($matches);
+        if ($matches !== []) {
+            $device->os = $this->nmapOs($matches);
         }
         $dist = $nmapHost->distance[0] ?? null;
         if ($dist !== null) {
@@ -150,23 +150,30 @@ final class ReportBuilder
         }
     }
 
-    /** @param list<SimpleXMLElement> $matches <osmatch> elements, best first */
-    private static function nmapOs(array $matches): array
+    /**
+     * @param list<SimpleXMLElement> $matches <osmatch> elements, best first
+     * @return array<string, mixed>
+     */
+    private function nmapOs(array $matches): array
     {
         $classes = [];
         foreach ($matches as $match) {
             array_push($classes, ...iterator_to_array($match->osclass, false));
         }
-        $types = array_unique(array_filter(array_map(fn($osClass) => NmapXml::attr($osClass, 'type'), $classes), Text::present(...)));
-        $cpes = array_unique(array_filter(array_map(fn($osClass) => isset($osClass->cpe[0]) ? (string) $osClass->cpe[0] : null, $classes),
-            Text::present(...)));
+        $types = array_unique(array_filter(array_map(fn(SimpleXMLElement $osClass): ?string => NmapXml::attr($osClass, 'type'), $classes), Text::present(...)));
+        $cpes = array_unique(array_filter(
+            array_map(fn(SimpleXMLElement $osClass): ?string => isset($osClass->cpe[0]) ? (string) $osClass->cpe[0] : null, $classes),
+            Text::present(...)
+        ));
         sort($types, SORT_STRING);
         sort($cpes, SORT_STRING);
         return [
             'best_guess' => NmapXml::attr($matches[0], 'name'),
             'accuracy' => (int) NmapXml::attr($matches[0], 'accuracy'),
-            'guesses' => array_map(fn($guess) => ['name' => NmapXml::attr($guess, 'name'), 'accuracy' => (int) NmapXml::attr($guess, 'accuracy')],
-                array_slice($matches, 0, 5)),
+            'guesses' => array_map(
+                fn(SimpleXMLElement $guess): array => ['name' => NmapXml::attr($guess, 'name'), 'accuracy' => (int) NmapXml::attr($guess, 'accuracy')],
+                array_slice($matches, 0, 5)
+            ),
             'device_types' => $types,
             'cpe' => $cpes,
         ];
@@ -184,7 +191,7 @@ final class ReportBuilder
             $device->mac = strtolower(trim($mac)) ?: $device->mac;
         }
         $device->ports = $this->localPorts();
-        $device->os = self::localOs();
+        $device->os = $this->localOs();
     }
 
     /** @return list<Port> TCP ports this machine listens on that are reachable from the LAN */
@@ -192,7 +199,7 @@ final class ReportBuilder
     {
         $procs = [];
         foreach ($this->scan->lines('local-ss.txt') as $line) {
-            $fields = preg_split('/\s+/', trim($line), 6);
+            $fields = preg_split('/\s+/', trim($line), 6) ?: [];
             if (count($fields) < 5) {
                 continue;
             }
@@ -213,10 +220,11 @@ final class ReportBuilder
         return array_map(Port::local(...), array_keys($procs), $procs);
     }
 
-    private static function localOs(): array
+    /** @return array<string, mixed> */
+    private function localOs(): array
     {
         $info = [];
-        foreach (is_readable('/etc/os-release') ? file('/etc/os-release') : [] as $line) {
+        foreach ((is_readable('/etc/os-release') ? file('/etc/os-release') : false) ?: [] as $line) {
             $parts = explode('=', trim($line), 2);
             $info[$parts[0]] = trim($parts[1] ?? '', '"');
         }
@@ -249,7 +257,7 @@ final class ReportBuilder
      * @param list<SimpleXMLElement> $hosts
      * @return iterable<string, SimpleXMLElement> the hosts that are up, keyed by IP
      */
-    private static function upHosts(array $hosts): iterable
+    private function upHosts(array $hosts): iterable
     {
         foreach ($hosts as $nmapHost) {
             $ip = NmapXml::hostIp($nmapHost);

@@ -17,7 +17,7 @@ final class RenderCommand
         Timezone::useLocal();
         try {
             $options = Options::parse(array_slice($argv, 1));
-            $report = self::readReport($options->report);
+            $report = $this->readReport($options->report);
             if ($options->namesPath !== Options::DEFAULT_NAMES && !file_exists($options->namesPath)) {
                 throw new CliError("names file not found: {$options->namesPath}\n", 1);
             }
@@ -31,7 +31,7 @@ final class RenderCommand
     }
 
     /** @throws CliError if the report cannot be read or parsed */
-    private static function readReport(string $path): Report
+    private function readReport(string $path): Report
     {
         $raw = @file_get_contents($path === '-' ? 'php://stdin' : $path);
         if ($raw === false) {
@@ -40,7 +40,7 @@ final class RenderCommand
         try {
             return Report::fromArray(json_decode($raw, true, flags: JSON_THROW_ON_ERROR));
         } catch (JsonException $error) {
-            throw new CliError("cannot parse $path: {$error->getMessage()}\n", 1);
+            throw new CliError("cannot parse $path: {$error->getMessage()}\n", 1, $error);
         }
     }
 }

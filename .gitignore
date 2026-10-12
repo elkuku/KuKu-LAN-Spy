@@ -2,3 +2,7 @@
 reports/
 output/
 device-names.txt
+
+# Composer and tool caches
+vendor/
+.php-cs-fixer.cache

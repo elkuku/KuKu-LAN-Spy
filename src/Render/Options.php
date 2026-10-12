@@ -18,8 +18,7 @@ final class Options
         public readonly string $report,
         public readonly int $refresh,
         public readonly string $namesPath,
-    ) {
-    }
+    ) {}
 
     /**
      * @param list<string> $args the command line without the script name
@@ -56,8 +55,8 @@ final class Options
     private static function help(): never
     {
         echo self::USAGE, "\n",
-            "  --refresh SECONDS  auto-reload the page every N seconds\n",
-            "  --names FILE       custom device names file (default: device-names.txt next to this script, if present)\n";
+        "  --refresh SECONDS  auto-reload the page every N seconds\n",
+        "  --names FILE       custom device names file (default: device-names.txt next to this script, if present)\n";
         exit(0);
     }
 

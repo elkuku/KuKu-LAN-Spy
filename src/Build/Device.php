@@ -23,14 +23,13 @@ final class Device implements JsonSerializable
     public string $deepScan = 'not scanned';
     /** @var ?list<Port> null if the device was not port scanned */
     public ?array $ports = null;
+    /** @var ?array<string, mixed> nmap's OS guess, or the OS read locally for this machine */
     public ?array $os = null;
     // Only in the report when known.
     public ?string $portsNotShown = null;
     public ?int $networkDistance = null;
 
-    public function __construct(public readonly string $ip)
-    {
-    }
+    public function __construct(public readonly string $ip) {}
 
     public function seenBy(string $source): void
     {
@@ -39,6 +38,7 @@ final class Device implements JsonSerializable
         }
     }
 
+    /** @return array<string, mixed> */
     public function jsonSerialize(): array
     {
         $out = [

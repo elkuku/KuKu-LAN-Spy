@@ -35,25 +35,29 @@ final class MergedDevice implements JsonSerializable
     /** @var list<array> */
     public array $mdns = [];
     public ?string $lastPortScan = null;
+    /** @var ?list<array<string, mixed>> */
     public ?array $ports = null;
     public ?string $portsNotShown = null;
+    /** @var ?array<string, mixed> */
     public ?array $os = null;
     public ?int $networkDistance = null;
     public int|float|null $latencyMs = null;
 
-    public function __construct(public readonly ?string $mac, public readonly string $firstSeen)
-    {
-    }
+    public function __construct(public readonly ?string $mac, public readonly string $firstSeen) {}
 
-    /** Fold in the device as one report saw it; reports must come oldest first. */
+    /**
+     * Fold in the device as one report saw it; reports must come oldest first.
+     *
+     * @param array<string, mixed> $device
+     */
     public function add(array $device, string $date): void
     {
         $this->ip = $device['ip'];
-        self::addUnique($this->ipsSeen, $device['ip']);
+        $this->addUnique($this->ipsSeen, $device['ip']);
         $this->lastSeen = $date;
         $this->timesSeen++;
         foreach ($device['seen_by'] ?? [] as $source) {
-            self::addUnique($this->seenBy, $source);
+            $this->addUnique($this->seenBy, $source);
         }
         foreach (self::SIMPLE_FIELDS as $key => $property) {
             if (isset($device[$key])) {
@@ -61,7 +65,7 @@ final class MergedDevice implements JsonSerializable
             }
         }
         foreach ($device['mdns'] ?? [] as $entry) {
-            self::addUnique($this->mdns, $entry);
+            $this->addUnique($this->mdns, $entry);
         }
         // "local" is this machine, whose ports are read from the kernel instead.
         if (in_array($device['deep_scan'] ?? null, ['ok', 'local'], true)) {
@@ -72,6 +76,7 @@ final class MergedDevice implements JsonSerializable
         }
     }
 
+    /** @return array<string, mixed> */
     public function jsonSerialize(): array
     {
         return [
@@ -85,7 +90,13 @@ final class MergedDevice implements JsonSerializable
         ];
     }
 
-    private static function addUnique(array &$list, mixed $value): void
+    /**
+     * @template T
+     * @param list<T> $list
+     * @param T $value
+     * @param-out list<T> $list
+     */
+    private function addUnique(array &$list, mixed $value): void
     {
         if (!in_array($value, $list, true)) {
             $list[] = $value;

@@ -11,21 +11,23 @@ use LanSpy\Util\Text;
 final class DeviceNames
 {
     /** @param array<string, CustomName> $byAddress keyed by lowercase MAC (with colons) or IP */
-    private function __construct(private readonly array $byAddress)
-    {
-    }
+    private function __construct(private readonly array $byAddress) {}
 
     public static function none(): self
     {
         return new self([]);
     }
 
-    /** @throws CliError on an unknown device type */
+    /** @throws CliError if the file cannot be read or names an unknown device type */
     public static function load(string $path): self
     {
+        $contents = @file_get_contents($path);
+        if ($contents === false) {
+            throw new CliError("cannot read $path\n", 1);
+        }
         $byAddress = [];
-        foreach (preg_split('/\r\n|\r|\n/', file_get_contents($path)) as $line) {
-            $parts = preg_split('/\s+/u', ltrim($line), 2, PREG_SPLIT_NO_EMPTY);
+        foreach (preg_split('/\r\n|\r|\n/', $contents) ?: [] as $line) {
+            $parts = preg_split('/\s+/u', ltrim($line), 2, PREG_SPLIT_NO_EMPTY) ?: [];
             if (count($parts) !== 2 || str_starts_with($parts[0], '#')) {
                 continue;
             }

@@ -14,12 +14,16 @@ final class OsGuess
         public readonly ?string $details,
         public readonly int|float|null $accuracy,
         public readonly ?string $source,
-    ) {
-    }
+    ) {}
 
+    /** @param ?array<string, mixed> $os */
     public static function fromArray(?array $os): self
     {
-        return new self(Text::orNull($os['best_guess'] ?? null), Text::orNull($os['details'] ?? null),
-            $os['accuracy'] ?? null, Text::orNull($os['source'] ?? null));
+        return new self(
+            Text::orNull($os['best_guess'] ?? null),
+            Text::orNull($os['details'] ?? null),
+            $os['accuracy'] ?? null,
+            Text::orNull($os['source'] ?? null)
+        );
     }
 }

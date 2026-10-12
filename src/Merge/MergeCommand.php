@@ -14,8 +14,8 @@ final class MergeCommand
     /** @param list<string> $argv */
     public function run(array $argv): int
     {
-        $reports = self::loadReports(array_slice($argv, 1) ?: glob('lan-report-*.json'));
-        if (!$reports) {
+        $reports = $this->loadReports(array_slice($argv, 1) ?: (glob('lan-report-*.json') ?: []));
+        if ($reports === []) {
             fwrite(STDERR, "no reports to merge\n");
             return 1;
         }
@@ -29,7 +29,7 @@ final class MergeCommand
      * @param list<string> $paths
      * @return list<ReportFile>
      */
-    private static function loadReports(array $paths): array
+    private function loadReports(array $paths): array
     {
         $reports = [];
         foreach ($paths as $path) {
@@ -39,7 +39,7 @@ final class MergeCommand
                 fwrite(STDERR, "skipping $path: {$error->getMessage()}\n");
             }
         }
-        usort($reports, fn(ReportFile $left, ReportFile $right) => [$left->date, $left->path] <=> [$right->date, $right->path]);
+        usort($reports, fn(ReportFile $left, ReportFile $right): int => [$left->date, $left->path] <=> [$right->date, $right->path]);
         return $reports;
     }
 }

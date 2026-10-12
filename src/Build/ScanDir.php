@@ -9,15 +9,12 @@ use SimpleXMLElement;
 /** The folder of intermediate files lan-spy.sh writes; missing files read as empty. */
 final class ScanDir
 {
-    public function __construct(private readonly string $path)
-    {
-    }
+    public function __construct(private readonly string $path) {}
 
     /** @return list<string> the non-empty lines */
     public function lines(string $name): array
     {
-        $file = "$this->path/$name";
-        return is_file($file) ? preg_split('/\r?\n/', rtrim(file_get_contents($file), "\r\n"), -1, PREG_SPLIT_NO_EMPTY) : [];
+        return preg_split('/\r?\n/', rtrim($this->contents($name), "\r\n"), -1, PREG_SPLIT_NO_EMPTY) ?: [];
     }
 
     /** @return array<string, string> first column => second column */
@@ -36,8 +33,14 @@ final class ScanDir
     /** @return list<string> whitespace-separated words */
     public function words(string $name): array
     {
+        return preg_split('/\s+/', trim($this->contents($name)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    /** The whole file; '' if it is missing or unreadable. */
+    private function contents(string $name): string
+    {
         $file = "$this->path/$name";
-        return is_file($file) ? preg_split('/\s+/', trim(file_get_contents($file)), -1, PREG_SPLIT_NO_EMPTY) : [];
+        return (is_file($file) ? file_get_contents($file) : false) ?: '';
     }
 
     /** @return list<SimpleXMLElement> the <host> elements of an nmap XML file */

@@ -11,6 +11,6 @@ final class Json
     {
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
             | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
-        echo preg_replace_callback('/^(?: {4})+/m', fn(array $indent) => str_repeat(' ', strlen($indent[0]) / 2), $json), "\n";
+        echo preg_replace_callback('/^(?: {4})+/m', fn(array $indent): string => str_repeat(' ', intdiv(strlen($indent[0]), 2)), $json), "\n";
     }
 }

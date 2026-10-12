@@ -17,20 +17,26 @@ final class Report
         public readonly int $scans,
         public readonly ?string $network,
         public readonly ?string $gateway,
-    ) {
-    }
+    ) {}
 
+    /** @param array<string, mixed> $data the decoded report or merged inventory */
     public static function fromArray(array $data): self
     {
         $devices = array_map(Device::fromArray(...), $data['devices']);
-        usort($devices, fn(Device $left, Device $right) => Ip::compare($left->ip, $right->ip));
+        usort($devices, fn(Device $left, Device $right): int => Ip::compare($left->ip, $right->ip));
         if (!array_key_exists('merged_from', $data)) {
             $scan = $data['scan'];
             return new self($devices, false, $scan['date'], 1, $scan['network'] ?? null, $scan['gateway'] ?? null);
         }
         $dates = array_column($data['merged_from'], 'date');
-        return new self($devices, true, $dates ? max($dates) : null, count($data['merged_from']),
-            $data['network'] ?? null, $data['gateway'] ?? null);
+        return new self(
+            $devices,
+            true,
+            $dates !== [] ? max($dates) : null,
+            count($data['merged_from']),
+            $data['network'] ?? null,
+            $data['gateway'] ?? null
+        );
     }
 
     public function isOnline(Device $device): bool
@@ -40,6 +46,6 @@ final class Report
 
     public function openPortCount(): int
     {
-        return array_sum(array_map(fn(Device $device) => count($device->openPorts()), $this->devices));
+        return array_sum(array_map(fn(Device $device): int => count($device->openPorts()), $this->devices));
     }
 }

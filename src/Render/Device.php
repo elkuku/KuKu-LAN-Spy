@@ -29,9 +29,9 @@ final class Device
         public readonly int $timesSeen,
         public readonly ?string $lastSeen,
         public readonly ?string $deepScan,
-    ) {
-    }
+    ) {}
 
+    /** @param array<string, mixed> $device */
     public static function fromArray(array $device): self
     {
         return new self(
@@ -42,8 +42,8 @@ final class Device
             hostname: Text::orNull($device['hostname'] ?? null),
             netbios: Text::orNull($device['netbios'] ?? null),
             role: Text::orNull($device['role'] ?? null),
-            mdns: array_map(MdnsEntry::fromArray(...), $device['mdns'] ?? []),
-            ports: isset($device['ports']) ? array_map(Port::fromArray(...), $device['ports']) : null,
+            mdns: array_values(array_map(MdnsEntry::fromArray(...), $device['mdns'] ?? [])),
+            ports: isset($device['ports']) ? array_values(array_map(Port::fromArray(...), $device['ports'])) : null,
             portsNotShown: Text::orNull($device['ports_not_shown'] ?? null),
             os: OsGuess::fromArray($device['os'] ?? null),
             latencyMs: $device['latency_ms'] ?? null,
@@ -56,20 +56,28 @@ final class Device
     /** @return list<Port> */
     public function openPorts(): array
     {
-        return array_values(array_filter($this->ports ?? [], fn(Port $port) => $port->isOpen()));
+        return array_values(array_filter($this->ports ?? [], fn(Port $port): bool => $port->isOpen()));
     }
 
-    /** Hostname, NetBIOS and mDNS names, without duplicates. @return list<string> */
+    /**
+     * Hostname, NetBIOS and mDNS names, without duplicates.
+     *
+     * @return list<string>
+     */
     public function names(): array
     {
-        $names = [$this->hostname, $this->netbios, ...array_map(fn(MdnsEntry $entry) => $entry->hostname, $this->mdns)];
-        return array_values(array_unique(array_filter($names, fn(?string $name) => $name !== null)));
+        $names = [$this->hostname, $this->netbios, ...array_map(fn(MdnsEntry $entry): ?string => $entry->hostname, $this->mdns)];
+        return array_values(array_unique(array_filter($names, fn(?string $name): bool => $name !== null)));
     }
 
-    /** Announced mDNS services, sorted. @return list<string> */
+    /**
+     * Announced mDNS services, sorted.
+     *
+     * @return list<string>
+     */
     public function mdnsServices(): array
     {
-        $services = array_unique(array_filter(array_map(fn(MdnsEntry $entry) => $entry->service, $this->mdns), fn(?string $value) => $value !== null));
+        $services = array_unique(array_filter(array_map(fn(MdnsEntry $entry): ?string => $entry->service, $this->mdns), fn(?string $value): bool => $value !== null));
         sort($services, SORT_STRING);
         return $services;
     }

@@ -10,9 +10,7 @@ final class OuiDatabase
     private const FILE = '/usr/share/nmap/nmap-mac-prefixes';
 
     /** @param array<string, string> $vendors MAC prefix (6 hex digits, upper case) => vendor */
-    private function __construct(private readonly array $vendors)
-    {
-    }
+    private function __construct(private readonly array $vendors) {}
 
     /** An empty database if nmap's list is not installed. */
     public static function load(): self

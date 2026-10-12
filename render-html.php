@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+
 /**
  * Render a lan-spy report or merged inventory as a standalone HTML page.
  *
@@ -15,6 +16,6 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/src/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
-exit((new LanSpy\Render\RenderCommand())->run($argv));
+exit((new LanSpy\Render\RenderCommand())->run($_SERVER['argv']));

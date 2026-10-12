@@ -5,6 +5,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+if [[ ! -f "$SCRIPT_DIR/vendor/autoload.php" ]]; then
+    echo "The PHP dependencies are missing; run this first: composer install --no-dev" >&2
+    exit 1
+fi
+
 IFACE="${1:-$(ip route show default | awk '/default/ {print $5; exit}')}"
 OUT="${2:-lan-report-$(date +%Y%m%d-%H%M%S).json}"
 

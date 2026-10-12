@@ -22,12 +22,12 @@ final class BuildCommand
         [, $dir, $iface, $cidr, $gateway, $myhost] = $argv;
         Timezone::useLocal();
         $builder = new ReportBuilder(new ScanDir($dir), $iface, explode('/', $cidr)[0], $gateway, $myhost);
-        Json::write($builder->build(self::networkOf($cidr)));
+        Json::write($builder->build($this->networkOf($cidr)));
         return 0;
     }
 
     /** The network address of an IPv4 CIDR, e.g. 192.168.1.129/24 => 192.168.1.0/24. */
-    private static function networkOf(string $cidr): string
+    private function networkOf(string $cidr): string
     {
         [$ip, $prefix] = explode('/', $cidr) + [1 => '32'];
         $prefix = (int) $prefix;
