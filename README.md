@@ -117,6 +117,10 @@ IP, vendor and names, MAC, open ports (with IoT hints), OS guess, latency and,
 for merged input, how often and when the device was last seen. Devices missing
 from the latest scan are greyed out.
 
+The page is built from the files in `templates/`: `page.html.php` and
+`device-row.html.php` hold the markup, and `style.css` and `script.js` are
+inlined into the page. Edit those to change how the page looks.
+
 Each row shows one line; click it (or press Enter) to expand the details:
 hostnames and mDNS services, filtered ports, OS notes and when the device was
 last seen. "Expand all" opens every row, and open rows stay open across the

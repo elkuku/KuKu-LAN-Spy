@@ -8,6 +8,7 @@
  * Pass - as the report to read it from stdin.
  *
  * Accepts the output of lan-spy.sh (single scan) or merge-reports.php (merged).
+ * The page is built from the templates in templates/ and inlines their CSS and JS.
  * Custom device names are read from device-names.txt next to this script, if it
  * exists (see device-names.example.txt).
  */
@@ -15,212 +16,6 @@
 declare(strict_types=1);
 
 const DEFAULT_NAMES = __DIR__ . '/device-names.txt';
-
-const CSS = <<<'CSS'
-:root {
-  --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #6b7280; --border: #e5e7eb;
-  --chip: #eef2ff; --chip-text: #3730a3; --hint: #ecfdf5; --hint-text: #065f46;
-  --up: #16a34a; --down: #9ca3af; --warn: #b45309; --name: #1d4ed8; --unnamed: #eab308; --filtered: #eab308;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111317; --card: #1a1d23; --text: #e6e8eb; --muted: #9aa1ab; --border: #2b3038;
-    --chip: #262b45; --chip-text: #c7d2fe; --hint: #10302a; --hint-text: #a7f3d0;
-    --up: #22c55e; --down: #4b5563; --warn: #f59e0b; --name: #93c5fd; --unnamed: #facc15; --filtered: #facc15;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text);
-  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
-h1 { font-size: 22px; margin: 0 0 4px; }
-.sub { color: var(--muted); margin-bottom: 20px; }
-.stats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
-.stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-  padding: 10px 16px; min-width: 120px; }
-.stat b { display: block; font-size: 22px; }
-.stat span { color: var(--muted); font-size: 12px; }
-.wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
-table { border-collapse: collapse; width: 100%; min-width: 1000px; table-layout: fixed; }
-th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
-tr:last-child td { border-bottom: 0; }
-tr.offline td { opacity: .55; }
-.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; }
-.muted { color: var(--muted); font-size: 12px; }
-.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--down); }
-.dot.up { background: var(--up); }
-.chip { display: inline-block; background: var(--chip); color: var(--chip-text); border-radius: 6px;
-  padding: 1px 7px; margin: 0 4px 4px 0; font-size: 12px; white-space: nowrap; }
-.chip.hint { background: var(--hint); color: var(--hint-text); }
-.chip.filtered { background: transparent; border: 1px dashed var(--border); color: var(--muted); }
-.badge { font-size: 11px; color: var(--warn); }
-.name { display: block; font-size: 16px; font-weight: 600; color: var(--name); }
-tr.named td:first-child { box-shadow: inset 3px 0 0 var(--name); }
-tr.unnamed td:first-child { box-shadow: inset 3px 0 0 var(--unnamed); }
-.device { display: flex; gap: 10px; align-items: flex-start; }
-.device > div { min-width: 0; }
-.icon { flex: none; width: 26px; height: 26px; margin-top: 1px; color: var(--muted); }
-.icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7;
-  stroke-linecap: round; stroke-linejoin: round; }
-tr.named .icon { color: var(--name); }
-.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
-  margin-bottom: 8px; }
-.copy { width: 22px; height: 22px; margin-left: 4px; padding: 3px; border: 0; border-radius: 4px; vertical-align: middle;
-  background: none; color: var(--muted); cursor: pointer; }
-.copy:hover, .copy:focus-visible { color: var(--text); background: color-mix(in srgb, var(--border) 60%, transparent); }
-.copy svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2;
-  stroke-linecap: round; stroke-linejoin: round; }
-.copy .copied, .copy.done .to-copy { display: none; }
-.copy.done .copied { display: block; }
-.copy.done { color: var(--up); }
-.filters { display: flex; flex-wrap: wrap; gap: 8px 16px; }
-.filter { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.toolbar button, .toolbar input, .empty button { font: inherit; font-size: 12px; color: var(--text); background: var(--card);
-  border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
-.toolbar input { width: 150px; cursor: text; }
-.empty { padding: 28px 12px; text-align: center; color: var(--muted); }
-.empty button { margin-left: 8px; }
-.toolbar button:disabled { opacity: .5; cursor: default; }
-.toolbar .active { border-color: var(--filtered); background: color-mix(in srgb, var(--filtered) 22%, var(--card)); }
-.type-menu { position: relative; }
-#type-button, .type-menu li { display: flex; align-items: center; gap: 8px; }
-#type-button::after { content: "▾"; color: var(--muted); }
-.type-menu ul { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; min-width: 100%; margin: 0;
-  padding: 4px; list-style: none; white-space: nowrap; background: var(--card); border: 1px solid var(--border);
-  border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / .15); }
-.type-menu li { padding: 5px 10px; border-radius: 5px; color: var(--text); font-size: 13px; cursor: pointer; }
-.type-menu li:hover, .type-menu li:focus { background: color-mix(in srgb, var(--border) 60%, transparent); outline: none; }
-.type-menu li[aria-selected="true"] { color: var(--name); font-weight: 600; }
-.type-menu .icon { width: 18px; height: 18px; margin: 0; color: inherit; }
-.type-menu .count { margin-left: auto; padding-left: 12px; color: var(--muted); font-weight: normal; }
-tbody tr { cursor: pointer; }
-tbody tr:hover td { background: color-mix(in srgb, var(--border) 35%, transparent); }
-tbody tr:focus-visible { outline: 2px solid var(--name); outline-offset: -2px; }
-.chev { display: inline-block; width: 12px; color: var(--muted); transition: transform .15s; }
-tr.open .chev { transform: rotate(90deg); }
-tr:not(.open) td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
-  padding-top: 7px; padding-bottom: 7px; }
-tr:not(.open) .device { align-items: center; }
-tr:not(.open) .device > div, tr:not(.open) .name { overflow: hidden; text-overflow: ellipsis; }
-tr:not(.open) .name { font-size: 14px; }
-tr:not(.open) .icon { width: 20px; height: 20px; margin-top: 0; }
-tr:not(.open) .chip { margin-bottom: 0; }
-tr:not(.open) .more, tr.open .less { display: none; }
-CSS;
-
-const SCRIPT = <<<'JS'
-const KEY = "lan-spy-open";
-const rows = [...document.querySelectorAll("tbody tr")];
-let open;
-try { open = new Set(JSON.parse(sessionStorage.getItem(KEY) || "[]")); } catch (e) { open = new Set(); }
-const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify([...open])); } catch (e) {} };
-const toggleAll = document.getElementById("toggle-all");
-const typeButton = document.getElementById("type-button");
-const typeList = document.getElementById("type-list");
-const typeOptions = [...typeList.children];
-const macFilter = document.getElementById("mac-filter");
-const noMatch = document.getElementById("no-match");
-let typeValue = "";
-const shown = () => rows.filter(r => !r.hidden);
-function set(tr, on) {
-  tr.classList.toggle("open", on);
-  tr.setAttribute("aria-expanded", on);
-  on ? open.add(tr.dataset.key) : open.delete(tr.dataset.key);
-}
-function sync() {
-  toggleAll.textContent = shown().every(r => r.classList.contains("open")) ? "Collapse all" : "Expand all";
-  toggleAll.disabled = shown().length === 0;
-  save();
-}
-rows.forEach(tr => {
-  set(tr, open.has(tr.dataset.key));
-  tr.addEventListener("click", () => {
-    if (getSelection().toString()) return;  // let people select and copy text
-    set(tr, !tr.classList.contains("open")); sync();
-  });
-  tr.addEventListener("keydown", e => {
-    if (e.target !== tr) return;  // keys on the copy button are its own
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); }
-  });
-});
-toggleAll.addEventListener("click", () => {
-  const on = toggleAll.textContent === "Expand all";
-  shown().forEach(tr => set(tr, on)); sync();
-});
-// Filters: a row shows when it matches both the type and the MAC filter.
-// MACs are compared as bare hex digits, so "584b", "58:4b" and "58-4B" all match.
-const hex = s => s.toLowerCase().replace(/[^0-9a-f]/g, "");
-function applyFilters() {
-  const mac = hex(macFilter.value);
-  rows.forEach(tr => {
-    tr.hidden = (typeValue !== "" && tr.dataset.type !== typeValue) || (mac !== "" && !hex(tr.dataset.mac).includes(mac));
-  });
-  macFilter.classList.toggle("active", mac !== "");
-  noMatch.hidden = shown().length > 0;
-  try {
-    sessionStorage.setItem("lan-spy-type", typeValue);
-    sessionStorage.setItem("lan-spy-mac", macFilter.value);
-  } catch (e) {}
-  sync();
-}
-macFilter.addEventListener("input", applyFilters);
-document.getElementById("clear-filters").addEventListener("click", () => { macFilter.value = ""; pickType(""); });
-// Type filter: a listbox instead of a <select>, so the options can show the device icons.
-function pickType(value) {
-  const opt = typeOptions.find(o => o.dataset.value === value) || typeOptions[0];
-  typeOptions.forEach(o => o.setAttribute("aria-selected", o === opt));
-  typeButton.innerHTML = opt.innerHTML;
-  typeButton.classList.toggle("active", opt.dataset.value !== "");
-  typeValue = opt.dataset.value;
-  applyFilters();
-}
-function showTypes(on) {
-  typeList.hidden = !on;
-  typeButton.setAttribute("aria-expanded", on);
-  if (on) typeOptions.find(o => o.getAttribute("aria-selected") === "true").focus();
-}
-typeButton.addEventListener("click", () => showTypes(typeList.hidden));
-typeButton.addEventListener("keydown", e => {
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); showTypes(true); }
-});
-typeOptions.forEach(o => o.addEventListener("click", () => {
-  pickType(o.dataset.value); showTypes(false); typeButton.focus();
-}));
-typeList.addEventListener("keydown", e => {
-  const i = typeOptions.indexOf(document.activeElement), n = typeOptions.length;
-  const move = { ArrowDown: i + 1, ArrowUp: i - 1 + n, Home: 0, End: n - 1 }[e.key];
-  if (move !== undefined) { e.preventDefault(); typeOptions[move % n].focus(); }
-  else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); document.activeElement.click(); }
-  else if (e.key === "Escape") { showTypes(false); typeButton.focus(); }
-  else if (e.key === "Tab") showTypes(false);
-});
-document.addEventListener("click", e => { if (!typeList.parentElement.contains(e.target)) showTypes(false); });
-let savedType = "";
-try {
-  savedType = sessionStorage.getItem("lan-spy-type") || "";
-  macFilter.value = sessionStorage.getItem("lan-spy-mac") || "";
-} catch (e) {}
-pickType(savedType);
-// Copy buttons. navigator.clipboard needs a secure context; fall back to execCommand otherwise.
-function copyText(text) {
-  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
-  const ta = Object.assign(document.createElement("textarea"), { value: text });
-  ta.style.cssText = "position:fixed;opacity:0";
-  document.body.append(ta);
-  ta.select();
-  const ok = document.execCommand("copy");
-  ta.remove();
-  return ok ? Promise.resolve() : Promise.reject(new Error("copy failed"));
-}
-document.querySelectorAll(".copy").forEach(b => b.addEventListener("click", e => {
-  e.stopPropagation();  // don't expand or collapse the row
-  copyText(b.dataset.copy).then(() => {
-    b.classList.add("done");
-    setTimeout(() => b.classList.remove("done"), 1500);
-  }, () => { b.title = "Copying failed"; });
-}));
-JS;
 
 /** A device type: its label and icon on the page, and the words in a custom name that give it away. */
 enum DeviceType: string
@@ -574,6 +369,29 @@ final class DeviceNames
     }
 }
 
+/** Renders the PHP templates in templates/, next to this script. */
+final class Template
+{
+    private const DIR = __DIR__ . '/templates';
+
+    /** @param array<string, mixed> $vars the variables the template sees */
+    public static function render(string $name, array $vars = []): string
+    {
+        return (static function (string $templateFile, array $templateVars): string {
+            extract($templateVars, EXTR_SKIP);
+            ob_start();
+            require $templateFile;
+            return ob_get_clean();
+        })(self::DIR . "/$name", $vars);
+    }
+
+    /** A file from templates/ as it is, for inlining CSS and JS. */
+    public static function file(string $name): string
+    {
+        return file_get_contents(self::DIR . "/$name");
+    }
+}
+
 final class Page
 {
     // Icon for the "All types" entry of the type filter.
@@ -596,19 +414,24 @@ final class Page
             $custom = $this->names->lookup($device);
             $type = $custom->type ?? DeviceType::guess($device, $custom->name);
             $types[] = $type->value;
-            $rows[] = $this->row($device, $custom, $type);
+            $rows[] = rtrim(Template::render('device-row.html.php', [
+                'device' => $device,
+                'type' => $type,
+                'customName' => $custom->name,
+                'online' => $report->isOnline($device),
+                'merged' => $report->merged,
+                'scans' => $report->scans,
+            ]));
         }
-        $rows = implode("\n", $rows);
 
         $counts = array_count_values($types);
-        $typeOptions = self::typeOption('', 'All types', self::ALL_TYPES_ICON, count($report->devices));
+        $typeOptions = [['', 'All types', self::ALL_TYPES_ICON, count($report->devices)]];
         foreach (DeviceType::cases() as $type) {
             if (isset($counts[$type->value])) {
-                $typeOptions .= self::typeOption($type->value, $type->label(), $type->icon(), $counts[$type->value]);
+                $typeOptions[] = [$type->value, $type->label(), $type->icon(), $counts[$type->value]];
             }
         }
 
-        $metaRefresh = $this->refresh ? '<meta http-equiv="refresh" content="' . $this->refresh . '">' : '';
         $stats = [
             [count($report->devices), $report->merged ? 'devices known' : 'devices'],
             [count(array_filter($report->devices, $report->isOnline(...))), 'in latest scan'],
@@ -617,193 +440,20 @@ final class Page
         if ($report->merged) {
             $stats[] = [$report->scans, 'scans merged'];
         }
-        $statsHtml = implode('', array_map(
-            fn(array $stat) => '<div class="stat"><b>' . $stat[0] . '</b><span>' . esc($stat[1]) . '</span></div>',
-            $stats,
-        ));
 
-        $css = "\n" . CSS . "\n";
-        $script = "\n" . SCRIPT . "\n";
-        $sub = esc($report->network ?? '') . ' · gateway ' . esc($report->gateway ?? '?')
-            . ' · latest scan ' . esc(fmt_time($report->latest));
-        $seenHeader = $report->merged ? 'Seen' : 'Port scan';
-        $generated = esc(date('Y-m-d H:i:s'));
-
-        return <<<HTML
-            <!doctype html>
-            <html lang="en">
-            <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            $metaRefresh
-            <title>LAN Devices</title>
-            <style>$css</style>
-            </head>
-            <body>
-            <main>
-            <h1>LAN Devices</h1>
-            <div class="sub">$sub</div>
-            <div class="stats">$statsHtml</div>
-            <div class="toolbar">
-            <div class="filters">
-            <div class="filter"><span id="type-label">Type</span>
-            <div class="type-menu">
-            <button type="button" id="type-button" aria-haspopup="listbox" aria-expanded="false"
-              aria-labelledby="type-label type-button"></button>
-            <ul id="type-list" role="listbox" aria-labelledby="type-label" hidden>$typeOptions</ul>
-            </div>
-            </div>
-            <label class="filter">MAC <input type="search" id="mac-filter" placeholder="e.g. 58:4b" spellcheck="false"
-              autocomplete="off"></label>
-            </div>
-            <button type="button" id="toggle-all">Expand all</button>
-            </div>
-            <div class="wrap">
-            <table>
-            <colgroup><col style="width:165px"><col style="width:20%"><col style="width:194px"><col>
-            <col style="width:17%"><col style="width:95px"><col style="width:90px"></colgroup>
-            <thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th>$seenHeader</th></tr></thead>
-            <tbody>
-            $rows
-            </tbody>
-            </table>
-            <div class="empty" id="no-match" hidden>No devices match the filters.<button type="button" id="clear-filters">Clear filters</button></div>
-            </div>
-            <p class="muted">Generated $generated by render-html.php.
-            Click a row for details. Greyed-out rows were not seen in the latest scan; a yellow edge marks online
-            devices without a custom name.</p>
-            </main>
-            <script>$script</script>
-            </body>
-            </html>
-
-            HTML;
-    }
-
-    private function row(Device $device, CustomName $custom, DeviceType $type): string
-    {
-        $online = $this->report->isOnline($device);
-        $who = esc($device->vendor ?? ($device->macRandomized ? 'Private MAC' : 'Unknown vendor'));
-        $extra = array_map(esc(...), $device->names());
-        if ($custom->name !== null) {
-            array_unshift($extra, $who);
-            $who = '<span class="name">' . esc($custom->name) . '</span>';
-        }
-        if ($device->role !== null) {
-            array_unshift($extra, '<b>' . esc($device->role) . '</b>');
-        }
-        if ($services = $device->mdnsServices()) {
-            $extra[] = 'mDNS: ' . esc(implode(', ', $services));
-        }
-
-        $mac = esc($device->mac ?? '—');
-        if ($device->mac !== null) {
-            $mac .= self::copyButton($device->mac, 'Copy MAC address');
-        }
-        if ($device->macRandomized) {
-            $mac .= '<div class="muted more">randomized</div>';
-        }
-
-        // Blue marker for named devices, yellow for online ones that still need a name.
-        $rowClass = implode(' ', array_filter([
-            $custom->name !== null ? 'named' : ($online ? 'unnamed' : ''),
-            $online ? '' : 'offline',
-        ]));
-
-        $latency = $device->latencyMs !== null ? sprintf('%g ms', $device->latencyMs) : '—';
-        $seen = $this->report->merged
-            ? "{$device->timesSeen}/{$this->report->scans}" . '<div class="muted more">last ' . esc(fmt_time($device->lastSeen)) . '</div>'
-            : esc($device->deepScan);
-
-        $key = esc($device->mac ?? $device->ip);
-        $macAttr = esc($device->mac);
-        $up = $online ? ' up' : '';
-        $ip = esc($device->ip);
-        $icon = self::iconHtml($type);
-        $extraHtml = implode('<br>', $extra);
-        $ports = self::portsHtml($device);
-        $os = self::osHtml($device);
-        return <<<HTML
-            <tr class="$rowClass" data-key="$key" data-type="{$type->value}" data-mac="$macAttr" tabindex="0" aria-expanded="false">
-            <td class="mono"><span class="chev">›</span><span class="dot$up"></span>$ip</td>
-            <td><div class="device">$icon<div>$who<div class="muted more">$extraHtml</div></div></div></td>
-            <td class="mono">$mac</td>
-            <td>$ports</td>
-            <td>$os</td>
-            <td class="mono">$latency</td>
-            <td>$seen</td>
-            </tr>
-            HTML;
-    }
-
-    private static function portsHtml(Device $device): string
-    {
-        if ($device->ports === null) {
-            return '<span class="muted">not scanned</span>';
-        }
-        $chips = [];
-        foreach ($device->ports as $port) {
-            $label = $port->port . '/' . ($port->service ?? '?');
-            $title = implode(' — ', array_filter([$port->version, $port->hint], fn(?string $value) => $value !== null));
-            $class = 'chip';
-            if (!$port->isOpen()) {
-                $class .= ' filtered more';
-                $label .= ' (' . ($port->state ?? 'None') . ')';
-            } elseif ($port->hint !== null) {
-                $class .= ' hint';
-                $label = "{$port->port} {$port->hint}";
-            }
-            $chips[] = '<span class="' . $class . '" title="' . esc($title) . '">' . esc($label) . '</span>';
-        }
-        if ($device->portsNotShown !== null) {
-            $chips[] = '<div class="muted more">' . esc($device->portsNotShown) . '</div>';
-        }
-        if (!$device->openPorts()) {
-            array_unshift($chips, '<span class="muted less">none open</span>');
-        }
-        return implode('', $chips);
-    }
-
-    private static function osHtml(Device $device): string
-    {
-        $name = $device->os->bestGuess ?? $device->os->details;
-        if ($name === null) {
-            return '<span class="muted">unknown</span>';
-        }
-        $out = esc($name);
-        if (!empty($device->os->accuracy)) {
-            $out .= ' <span class="muted">' . $device->os->accuracy . '%</span>';
-        }
-        if ($device->os->source === 'local') {
-            $out .= '<div class="muted more">read locally</div>';
-        } elseif (!$device->openPorts()) {
-            $out .= '<div class="badge more">unreliable: no open ports</div>';
-        }
-        return $out;
-    }
-
-    private static function iconHtml(DeviceType $type): string
-    {
-        $label = esc($type->label());
-        return '<span class="icon" title="' . $label . '">'
-            . '<svg viewBox="0 0 24 24" role="img" aria-label="' . $label . '">' . $type->icon() . '</svg></span>';
-    }
-
-    /** One entry of the type filter list: icon, label and device count. */
-    private static function typeOption(string $value, string $label, string $iconBody, int $count): string
-    {
-        return '<li role="option" tabindex="-1" data-value="' . esc($value) . '">'
-            . '<span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true">' . $iconBody . '</svg></span>'
-            . esc($label) . '<span class="count">' . $count . '</span></li>';
-    }
-
-    /** A small button that copies $text to the clipboard; it shows a check mark once copied. */
-    private static function copyButton(string $text, string $label): string
-    {
-        return '<button type="button" class="copy" data-copy="' . esc($text) . '" title="' . esc($label) . '"'
-            . ' aria-label="' . esc("$label $text") . '"><svg class="to-copy" viewBox="0 0 24 24" aria-hidden="true">'
-            . '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'
-            . '</svg><svg class="copied" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>';
+        return Template::render('page.html.php', [
+            'refresh' => $this->refresh,
+            'css' => Template::file('style.css'),
+            'script' => Template::file('script.js'),
+            'network' => $report->network,
+            'gateway' => $report->gateway,
+            'latestScan' => fmt_time($report->latest),
+            'stats' => $stats,
+            'typeOptions' => $typeOptions,
+            'seenHeader' => $report->merged ? 'Seen' : 'Port scan',
+            'rows' => $rows,
+            'generated' => date('Y-m-d H:i:s'),
+        ]);
     }
 }
 
