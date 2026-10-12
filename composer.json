@@ -2,6 +2,7 @@
     "name": "elkuku/kuku-lan-spy",
     "description": "Inventory the devices on the local LAN and render them as JSON and HTML",
     "type": "project",
+    "license": "WTFPL",
     "require": {
         "php": ">=8.1",
         "ext-ctype": "*",
