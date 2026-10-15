@@ -1,7 +1,8 @@
 {#
   One table row. Collapsed rows show one line; the .more parts appear when a row is expanded.
 
-  Inside the cells, the tags trim the whitespace around them so none gets between the inline chips.
+  Whitespace between inline elements shows up on the page, so it is trimmed where they sit side
+  by side: the MAC and its copy button, and the port chips.
 
   device        LanSpy\Render\Device
   type          LanSpy\Render\DeviceType
@@ -13,54 +14,100 @@
 {% set vendor = device.vendor ?? (device.macRandomized ? 'Private MAC' : 'Unknown vendor') %}
 {% set details = (customName is not null ? [vendor] : [])|merge(device.names) %}
 {% if device.mdnsServices is not empty %}
-{% set details = details|merge(['mDNS: ' ~ device.mdnsServices|join(', ')]) %}
+  {% set details = details|merge(['mDNS: ' ~ device.mdnsServices|join(', ')]) %}
 {% endif %}
 {# Blue marker for named devices, yellow for online ones that still need a name. #}
 {% set rowClass = [
-    customName is not null ? 'named' : (online ? 'unnamed' : ''),
-    online ? '' : 'offline',
+  customName is not null ? 'named' : (online ? 'unnamed' : ''),
+  online ? '' : 'offline',
 ]|filter(class => class != '')|join(' ') %}
 {% set osName = device.os.bestGuess ?? device.os.details %}
 <tr class="{{ rowClass }}" data-key="{{ device.mac ?? device.ip }}" data-type="{{ type.value }}"
   data-mac="{{ device.mac }}" tabindex="0" aria-expanded="false">
-<td class="mono"><span class="chev">›</span><span class="dot{{ online ? ' up' }}"></span>{{ device.ip }}</td>
-<td><div class="device">
-  <span class="icon" title="{{ type.label }}"><svg viewBox="0 0 24 24" role="img" aria-label="{{ type.label }}">{{ type.icon|raw }}</svg></span>
-  <div>{% if customName is not null %}<span class="name">{{ customName }}</span>{% else %}{{ vendor }}{% endif %}
-<div class="muted more">
-  {%- if device.role is not null %}<b>{{ device.role }}</b>{% if details is not empty %}<br>{% endif %}{% endif -%}
-  {%- for line in details %}{% if not loop.first %}<br>{% endif %}{{ line }}{% endfor -%}
-</div></div>
-</div></td>
-<td class="mono">{{ device.mac ?? '—' }}{% if device.mac is not null %}
-<button type="button" class="copy" data-copy="{{ device.mac }}" title="Copy MAC address" aria-label="Copy MAC address {{ device.mac }}">
-  {{- '' -}}
-<svg class="to-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/>
-  {{- '' -}}
-<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-  {{- '' -}}
-<svg class="copied" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>{% endif %}
-{% if device.macRandomized %}<div class="muted more">randomized</div>{% endif %}</td>
-<td>{% if device.ports is null %}<span class="muted">not scanned</span>{% else %}
-{% if device.openPorts is empty %}<span class="muted less">none open</span>{% endif %}
-{% for port in device.ports %}
-{%- if not port.isOpen -%}
-  {%- set class, label = 'chip filtered more', port.port ~ '/' ~ (port.service ?? '?') ~ ' (' ~ (port.state ?? 'None') ~ ')' -%}
-{%- elseif port.hint is not null -%}
-  {%- set class, label = 'chip hint', port.port ~ ' ' ~ port.hint -%}
-{%- else -%}
-  {%- set class, label = 'chip', port.port ~ '/' ~ (port.service ?? '?') -%}
-{%- endif -%}
-<span class="{{ class }}" title="{{ [port.version, port.hint]|filter(value => value is not null)|join(' — ') }}">{{ label }}</span>
-{%- endfor %}
-{% if device.portsNotShown is not null %}<div class="muted more">{{ device.portsNotShown }}</div>{% endif %}
-{% endif %}</td>
-<td>{% if osName is null %}<span class="muted">unknown</span>{% else %}{{ osName }}
-  {%- if device.os.accuracy %} <span class="muted">{{ device.os.accuracy }}%</span>{% endif %}
-{% if device.os.source == 'local' %}<div class="muted more">read locally</div>
-  {%- elseif device.openPorts is empty %}<div class="badge more">unreliable: no open ports</div>{% endif %}
-{% endif %}</td>
-<td class="mono">{{ device.latencyMs is not null ? '%g ms'|format(device.latencyMs) : '—' }}</td>
-<td>{% if merged %}{{ device.timesSeen }}/{{ scans }}<div class="muted more">last {{ device.lastSeen ? device.lastSeen|date('Y-m-d H:i') }}</div>
-  {%- else %}{{ device.deepScan }}{% endif %}</td>
+  <td class="mono"><span class="chev">›</span><span class="dot{{ online ? ' up' }}"></span>{{ device.ip }}</td>
+  <td>
+    <div class="device">
+      <span class="icon" title="{{ type.label }}">
+        <svg viewBox="0 0 24 24" role="img" aria-label="{{ type.label }}">{{ type.icon|raw }}</svg>
+      </span>
+      <div>
+        {% if customName is not null %}
+          <span class="name">{{ customName }}</span>
+        {% else %}
+          {{ vendor }}
+        {% endif %}
+        <div class="muted more">
+          {% if device.role is not null %}
+            <b>{{ device.role }}</b>{% if details is not empty %}<br>{% endif %}
+          {% endif %}
+          {% for line in details %}
+            {{ line }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </td>
+  <td class="mono">
+    {{ device.mac ?? '—' }}
+    {%- if device.mac is not null -%}
+      <button type="button" class="copy" data-copy="{{ device.mac }}" title="Copy MAC address"
+        aria-label="Copy MAC address {{ device.mac }}">
+        <svg class="to-copy" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="9" y="9" width="12" height="12" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <svg class="copied" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>
+    {% endif %}
+    {% if device.macRandomized %}
+      <div class="muted more">randomized</div>
+    {% endif %}
+  </td>
+  <td>
+    {% if device.ports is null %}
+      <span class="muted">not scanned</span>
+    {% else %}
+      {% if device.openPorts is empty %}
+        <span class="muted less">none open</span>
+      {% endif %}
+      {#- The chips sit side by side, so every tag in the loop trims the whitespace around it. #}
+      {%- for port in device.ports -%}
+        {%- if not port.isOpen -%}
+          {%- set class, label = 'chip filtered more', port.port ~ '/' ~ (port.service ?? '?') ~ ' (' ~ (port.state ?? 'None') ~ ')' -%}
+        {%- elseif port.hint is not null -%}
+          {%- set class, label = 'chip hint', port.port ~ ' ' ~ port.hint -%}
+        {%- else -%}
+          {%- set class, label = 'chip', port.port ~ '/' ~ (port.service ?? '?') -%}
+        {%- endif -%}
+        <span class="{{ class }}" title="{{ [port.version, port.hint]|filter(value => value is not null)|join(' — ') }}">{{ label }}</span>
+      {%- endfor %}
+      {% if device.portsNotShown is not null %}
+        <div class="muted more">{{ device.portsNotShown }}</div>
+      {% endif %}
+    {% endif %}
+  </td>
+  <td>
+    {% if osName is null %}
+      <span class="muted">unknown</span>
+    {% else %}
+      {{ osName }}
+      {% if device.os.accuracy %}
+        <span class="muted">{{ device.os.accuracy }}%</span>
+      {% endif %}
+      {% if device.os.source == 'local' %}
+        <div class="muted more">read locally</div>
+      {% elseif device.openPorts is empty %}
+        <div class="badge more">unreliable: no open ports</div>
+      {% endif %}
+    {% endif %}
+  </td>
+  <td class="mono">{{ device.latencyMs is not null ? '%g ms'|format(device.latencyMs) : '—' }}</td>
+  <td>
+    {% if merged %}
+      {{ device.timesSeen }}/{{ scans }}
+      <div class="muted more">last {{ device.lastSeen ? device.lastSeen|date('Y-m-d H:i') }}</div>
+    {% else %}
+      {{ device.deepScan }}
+    {% endif %}
+  </td>
 </tr>
