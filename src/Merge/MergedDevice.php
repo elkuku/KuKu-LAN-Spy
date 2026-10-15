@@ -31,6 +31,9 @@ final class MergedDevice implements JsonSerializable
     public private(set) ?string $role = null;
     public private(set) string $lastSeen;
     public private(set) int $timesSeen = 0;
+
+    /** @var list<int> indexes into merged_from of the reports that saw the device */
+    public private(set) array $seenIn = [];
     /** @var list<string> */
     public private(set) array $seenBy = [];
     /** @var list<array> */
@@ -50,13 +53,15 @@ final class MergedDevice implements JsonSerializable
      * Fold in the device as one report saw it; reports must come oldest first.
      *
      * @param array<string, mixed> $device
+     * @param int $scan the report's index in merged_from
      */
-    public function add(array $device, string $date): void
+    public function add(array $device, string $date, int $scan): void
     {
         $this->ip = $device['ip'];
         $this->addUnique($this->ipsSeen, $device['ip']);
         $this->lastSeen = $date;
         $this->timesSeen++;
+        $this->seenIn[] = $scan;
         foreach ($device['seen_by'] ?? [] as $source) {
             $this->addUnique($this->seenBy, $source);
         }
@@ -85,6 +90,7 @@ final class MergedDevice implements JsonSerializable
             'vendor' => $this->vendor, 'mac_locally_administered' => $this->macLocallyAdministered,
             'hostname' => $this->hostname, 'netbios' => $this->netbios, 'role' => $this->role,
             'first_seen' => $this->firstSeen, 'last_seen' => $this->lastSeen, 'times_seen' => $this->timesSeen,
+            'seen_in' => $this->seenIn,
             'seen_by' => $this->seenBy, 'mdns' => $this->mdns, 'last_port_scan' => $this->lastPortScan,
             'ports' => $this->ports, 'ports_not_shown' => $this->portsNotShown, 'os' => $this->os,
             'network_distance' => $this->networkDistance, 'latency_ms' => $this->latencyMs,

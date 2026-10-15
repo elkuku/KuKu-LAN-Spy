@@ -12,6 +12,7 @@ final readonly class Device
     /**
      * @param list<MdnsEntry> $mdns
      * @param ?list<Port> $ports null if the device was not port scanned
+     * @param ?list<int> $seenIn indexes of the merged scans that saw the device; null for a single report
      */
     public function __construct(
         public string $ip,
@@ -29,6 +30,7 @@ final readonly class Device
         public int $timesSeen,
         public ?string $lastSeen,
         public ?string $deepScan,
+        public ?array $seenIn,
     ) {}
 
     /** @param array<string, mixed> $device */
@@ -50,6 +52,7 @@ final readonly class Device
             timesSeen: $device['times_seen'] ?? 0,
             lastSeen: Text::orNull($device['last_seen'] ?? null),
             deepScan: Text::orNull($device['deep_scan'] ?? null),
+            seenIn: isset($device['seen_in']) ? array_values(array_map(intval(...), $device['seen_in'])) : null,
         );
     }
 

@@ -62,6 +62,13 @@ final readonly class Page
             'rows' => $rows,
             'merged' => $report->merged,
             'scans' => $report->scans,
+            'history' => $this->hasHistory() ? new History($report->scanDates) : null,
         ]);
+    }
+
+    /** Whether the report is a merged inventory that records which scans saw each device. */
+    private function hasHistory(): bool
+    {
+        return $this->report->merged && array_any($this->report->devices, fn(Device $device): bool => $device->seenIn !== null);
     }
 }

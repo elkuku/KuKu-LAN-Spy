@@ -9,7 +9,10 @@ use LanSpy\Util\Ip;
 /** A single lan-spy report or the output of merge-reports.php. */
 final readonly class Report
 {
-    /** @param list<Device> $devices sorted by IP */
+    /**
+     * @param list<Device> $devices sorted by IP
+     * @param list<string> $scanDates ISO dates of the merged scans, oldest first
+     */
     private function __construct(
         public array $devices,
         public bool $merged,
@@ -17,6 +20,7 @@ final readonly class Report
         public int $scans,
         public ?string $network,
         public ?string $gateway,
+        public array $scanDates = [],
     ) {}
 
     /** @param array<string, mixed> $data the decoded report or merged inventory */
@@ -35,7 +39,8 @@ final readonly class Report
             $dates !== [] ? max($dates) : null,
             count($data['merged_from']),
             $data['network'] ?? null,
-            $data['gateway'] ?? null
+            $data['gateway'] ?? null,
+            $dates,
         );
     }
 

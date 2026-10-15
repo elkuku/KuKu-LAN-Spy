@@ -15,12 +15,12 @@ final class Inventory
     /** @param non-empty-list<ReportFile> $reports oldest first, so newer values overwrite */
     public function __construct(private readonly array $reports)
     {
-        foreach ($reports as $report) {
+        foreach ($reports as $scan => $report) {
             foreach ($report->devices() as $device) {
                 $mac = ($device['mac'] ?? '') ?: null;
                 // The prefix keeps PHP from turning numeric-looking keys into integers.
                 $key = 'k' . ($mac ?? $device['ip']);
-                ($this->devices[$key] ??= new MergedDevice($device['mac'] ?? null, $report->date))->add($device, $report->date);
+                ($this->devices[$key] ??= new MergedDevice($device['mac'] ?? null, $report->date))->add($device, $report->date, $scan);
             }
         }
     }

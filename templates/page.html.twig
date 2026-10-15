@@ -11,6 +11,7 @@
   rows          list of the device-row.html.twig variables, one per device
   merged        bool: whether the input is a merged inventory
   scans         int: number of merged scans
+  history       ?LanSpy\Render\History: the online history, for a merged inventory
 #}
 <!doctype html>
 <html lang="en">
@@ -94,6 +95,9 @@
         No devices match the filters.<button type="button" id="clear-filters">Clear filters</button>
       </div>
     </div>
+    {% if history is not null %}
+      {{ include('history.html.twig', {history: history, rows: rows}, with_context: false) -}}
+    {% endif %}
     <p class="muted">
       Generated {{ 'now'|date('Y-m-d H:i:s') }} by render-html.php.
       Click a row for details. Greyed-out rows were not seen in the latest scan; a yellow edge marks online

@@ -18,6 +18,10 @@ const typeOptions = [...typeList.children];
 const macFilter = document.getElementById("mac-filter");
 const noMatch = document.getElementById("no-match");
 let typeValue = "";
+// The online history, below the table, follows the table's filters.
+const historySection = document.querySelector(".history");
+const historyRows = [...document.querySelectorAll(".history-row")];
+const rowsByKey = new Map(rows.map((tr) => [tr.dataset.key, tr]));
 const shown = () => rows.filter((r) => !r.hidden);
 function set(tr, on) {
   tr.classList.toggle("open", on);
@@ -58,6 +62,7 @@ function applyFilters() {
     tr.hidden =
       (typeValue !== "" && tr.dataset.type !== typeValue) || (mac !== "" && !hex(tr.dataset.mac).includes(mac));
   });
+  for (const line of historyRows) line.hidden = rowsByKey.get(line.dataset.key)?.hidden ?? false;
   macFilter.classList.toggle("active", mac !== "");
   noMatch.hidden = shown().length > 0;
   try {
@@ -147,4 +152,31 @@ for (const b of document.querySelectorAll(".copy")) {
       },
     );
   });
+}
+// Online history: hovering a strip outlines the scan under the pointer and shows its date and the device's state.
+if (historySection) {
+  const scans = JSON.parse(historySection.dataset.scans);
+  const tip = historySection.querySelector(".history-tip");
+  for (const strip of historySection.querySelectorAll(".strip")) {
+    const cursor = strip.querySelector(".cursor");
+    strip.addEventListener("pointermove", (e) => {
+      const box = strip.getBoundingClientRect();
+      const scan = Math.min(
+        scans.length - 1,
+        Math.max(0, Math.floor(((e.clientX - box.left) / box.width) * scans.length)),
+      );
+      cursor.style.left = `${(scan / scans.length) * 100}%`;
+      cursor.style.width = `${100 / scans.length}%`;
+      cursor.hidden = false;
+      tip.textContent = `${scans[scan]} · ${strip.dataset.seen[scan] === "1" ? "online" : "offline"}`;
+      const section = historySection.getBoundingClientRect();
+      tip.style.left = `${e.clientX - section.left}px`;
+      tip.style.top = `${box.top - section.top - 6}px`;
+      tip.hidden = false;
+    });
+    strip.addEventListener("pointerleave", () => {
+      cursor.hidden = true;
+      tip.hidden = true;
+    });
+  }
 }

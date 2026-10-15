@@ -1,0 +1,58 @@
+{#
+  The online history of a merged inventory: one strip per device with a slot per scan, oldest
+  on the left. A full bar means the scan saw the device, a thin line that it did not.
+
+  history       LanSpy\Render\History
+  rows          list of the device-row.html.twig variables, one per device
+#}
+{% set count = history.scanCount %}
+{% set labels = history.labels %}
+<section class="history" aria-labelledby="history-title" data-scans="{{ labels|json_encode }}">
+  <h2 id="history-title">Online history</h2>
+  <p class="muted">
+    One slot per scan, oldest on the left: a full bar means the scan saw the device, a thin line
+    that it did not.
+    {% for gap in history.gaps %}
+      Scans paused for {{ gap.hours }} h before {{ labels[gap.scan] }}.
+    {% endfor %}
+  </p>
+  <div class="history-grid">
+    {% for row in rows %}
+      {% set device = row.device %}
+      <div class="history-row{{ row.online ? '' : ' offline' }}" data-key="{{ device.mac ?? device.ip }}">
+        <span class="history-name">
+          <span class="icon" title="{{ row.type.label }}">
+            <svg viewBox="0 0 24 24" role="img" aria-label="{{ row.type.label }}">{{ row.type.icon|raw }}</svg>
+          </span>
+          <span>{{ row.customName ?? device.vendor ?? 'Unknown vendor' }} <span class="muted mono">{{ device.ip }}</span></span>
+        </span>
+        {% if device.seenIn is null %}
+          <span class="muted">no history in this inventory</span>
+        {% else %}
+          <div class="strip" data-seen="{{ history.pattern(device) }}"
+            role="img" aria-label="Seen in {{ device.seenIn|length }} of {{ count }} scans">
+            <svg viewBox="0 0 {{ count }} 10" preserveAspectRatio="none" aria-hidden="true">
+              {% for run in history.runs(device) %}
+                {% if run.online %}
+                  <rect class="on" x="{{ run.start }}" y="0" width="{{ run.length }}" height="10"/>
+                {% else %}
+                  <rect class="off" x="{{ run.start }}" y="8.5" width="{{ run.length }}" height="1.5"/>
+                {% endif %}
+              {% endfor %}
+            </svg>
+            {% for gap in history.gaps %}
+              <span class="gap" style="left: {{ gap.scan / count * 100 }}%"></span>
+            {% endfor %}
+            <span class="cursor" hidden></span>
+          </div>
+        {% endif %}
+        <span class="history-count mono">{{ device.seenIn is null ? '—' : device.seenIn|length ~ '/' ~ count }}</span>
+      </div>
+    {% endfor %}
+    <div class="history-axis muted">
+      <span>{{ labels|first }}</span>
+      <span>{{ labels|last }}</span>
+    </div>
+  </div>
+  <div class="history-tip" role="status" hidden></div>
+</section>

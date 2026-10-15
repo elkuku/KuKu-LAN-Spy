@@ -94,8 +94,9 @@ gives a more complete picture than any single one.
 - For names, vendor and role, the newest report with a value wins.
 - Ports, OS, latency and distance are taken together from the newest report
   in which the device was actually port-scanned.
-- Each device also gets `ips_seen`, `first_seen`, `last_seen`, `times_seen`
-  and `last_port_scan`.
+- Each device also gets `ips_seen`, `first_seen`, `last_seen`, `times_seen`,
+  `seen_in` (the indexes in `merged_from` of the scans that saw it) and
+  `last_port_scan`.
 
 ### `lan-watch.sh` — scan repeatedly
 
@@ -125,9 +126,9 @@ for merged input, how often and when the device was last seen. Devices missing
 from the latest scan are greyed out.
 
 The page is built from the files in `templates/`: the [Twig](https://twig.symfony.com/)
-templates `page.html.twig` and `device-row.html.twig` hold the markup, and
-`style.css` and `script.js` are inlined into the page. Edit those to change how
-the page looks.
+templates `page.html.twig`, `device-row.html.twig` and `history.html.twig` hold
+the markup, and `style.css` and `script.js` are inlined into the page. Edit
+those to change how the page looks.
 
 Each row shows one line; click it (or press Enter) to expand the details:
 hostnames and mDNS services, filtered ports, OS notes and when the device was
@@ -156,6 +157,14 @@ the clipboard.
 `render-html.php` (and so `lan-watch.sh`) picks the file up automatically;
 `--names` points to another one. `device-names.txt` is git-ignored since it
 lists your MACs.
+
+For a merged inventory, an "Online history" section below the table draws one
+strip per device with a slot per scan, oldest on the left: a full green bar
+where the scan saw the device, a thin grey line where it did not. The strips
+line up, so a scan that missed several devices at once shows as a column.
+Pauses of more than an hour between scans break the strips. Hover a strip for
+the scan's date and the device's state; the type and MAC filters apply here
+too.
 
 ## Code layout
 
