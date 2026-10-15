@@ -61,7 +61,7 @@
 <thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th>{{ seenHeader }}</th></tr></thead>
 <tbody>
 {% for row in rows %}
-{% include 'device-row.html.twig' with row|merge({merged: merged, scans: scans}) only %}
+{{ include('device-row.html.twig', row|merge({merged: merged, scans: scans}), with_context: false) -}}
 {% endfor %}
 </tbody>
 </table>

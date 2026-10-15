@@ -39,8 +39,8 @@ while true; do
     fi
 
     # Keep a steady start-to-start interval regardless of how long the scan took.
-    wait_for=$(( INTERVAL - ($(date +%s) - start) ))
-    if (( wait_for > 0 )); then
+    wait_for=$((INTERVAL - ($(date +%s) - start)))
+    if ((wait_for > 0)); then
         log "Next scan in ${wait_for}s (Ctrl+C to stop)"
         sleep "$wait_for"
     fi

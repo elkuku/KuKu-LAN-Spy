@@ -23,7 +23,8 @@
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.95",
         "phpstan/phpstan": "^2.3",
-        "rector/rector": "^2.7"
+        "rector/rector": "^2.7",
+        "vincentlanglet/twig-cs-fixer": "^4.1"
     },
     "scripts": {
         "analyse": "phpstan analyse",
@@ -31,18 +32,44 @@
         "rector:fix": "rector process",
         "cs": "php-cs-fixer check --diff",
         "cs:fix": "php-cs-fixer fix",
+        "twig": "twig-cs-fixer lint templates",
+        "twig:fix": "twig-cs-fixer fix templates",
+        "biome": "node_modules/.bin/biome check",
+        "biome:fix": "node_modules/.bin/biome check --write",
+        "shell": [
+            "shellcheck lan-spy.sh lan-watch.sh",
+            "shfmt --diff lan-spy.sh lan-watch.sh"
+        ],
+        "shell:fix": "shfmt --write lan-spy.sh lan-watch.sh",
+        "fix": [
+            "@cs:fix",
+            "@rector:fix",
+            "@twig:fix",
+            "@biome:fix",
+            "@shell:fix"
+        ],
         "check": [
             "@cs",
             "@rector",
-            "@analyse"
+            "@analyse",
+            "@twig",
+            "@biome",
+            "@shell"
         ]
     },
     "scripts-descriptions": {
         "analyse": "Run PHPStan",
         "rector": "Show the changes Rector would make",
         "rector:fix": "Apply the Rector changes",
-        "cs": "Check the coding style",
-        "cs:fix": "Fix the coding style",
-        "check": "Run the coding style check, Rector and PHPStan"
+        "cs": "Check the PHP coding style",
+        "cs:fix": "Fix the PHP coding style",
+        "twig": "Lint the Twig templates",
+        "twig:fix": "Fix the Twig template style",
+        "biome": "Lint and check the formatting of the JS and CSS",
+        "biome:fix": "Fix the JS and CSS formatting and safe lint issues",
+        "shell": "Lint (ShellCheck) and check the formatting (shfmt) of the shell scripts",
+        "shell:fix": "Format the shell scripts",
+        "fix": "Apply all the fixers",
+        "check": "Run all the checks without changing anything"
     }
 }

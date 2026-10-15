@@ -170,20 +170,27 @@ class per file under the `LanSpy\` namespace, loaded by Composer's autoloader:
 
 ## Development
 
-`composer install` (without `--no-dev`) also installs the code checks:
+The code checks need a few more tools: `composer install` (without
+`--no-dev`) installs the PHP ones, `npm install` installs
+[Biome](https://biomejs.dev/), and ShellCheck and shfmt come from the system
+(on Arch Linux: `sudo pacman -S nodejs npm shellcheck shfmt`).
 
 ```sh
 composer check       # all of the below, without changing anything
-composer cs          # coding style (PHP-CS-Fixer, PER-CS)
-composer rector      # suggested modernizations (Rector)
-composer analyse     # static analysis (PHPStan, level 8)
+composer cs          # PHP coding style (PHP-CS-Fixer, PER-CS)
+composer rector      # suggested PHP modernizations (Rector)
+composer analyse     # PHP static analysis (PHPStan, level 8)
+composer twig        # Twig template style (Twig-CS-Fixer)
+composer biome       # lint and formatting of templates/*.js and *.css (Biome)
+composer shell       # lint (ShellCheck) and formatting (shfmt) of the shell scripts
 
-composer cs:fix      # apply the coding style fixes
-composer rector:fix  # apply the Rector changes
+composer fix         # apply all the fixes below
+composer cs:fix      # each check above has a :fix script, except analyse
 ```
 
-The templates in `templates/` are left out of the coding style check, since
-their whitespace ends up in the HTML.
+PHP-CS-Fixer leaves the templates alone, and Twig-CS-Fixer only touches the
+inside of the Twig tags, since the whitespace around them ends up in the
+HTML. shfmt reads its settings from `.editorconfig`.
 
 ## Typical use
 

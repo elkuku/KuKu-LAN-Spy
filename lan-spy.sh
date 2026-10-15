@@ -33,7 +33,7 @@ log() { printf '[lan-spy] %s\n' "$*" >&2; }
 # A framed message that stands out from the progress lines; bold green on a terminal.
 banner() {
     local frame
-    frame=$(printf '%*s' $(( ${#1} + 4 )) '' | tr ' ' '=')
+    frame=$(printf '%*s' $((${#1} + 4)) '' | tr ' ' '=')
     if [[ -t 2 ]]; then
         printf '\n\e[1;32m%s\n  %s\n%s\e[0m\n\n' "$frame" "$1" "$frame" >&2
     else
@@ -44,7 +44,7 @@ banner() {
 log "Interface $IFACE, network $CIDR"
 
 log "arp-scan..."
-arp-scan --interface="$IFACE" --localnet --retry=3 --plain 2>/dev/null \
+arp-scan --interface="$IFACE" --localnet --retry=3 --plain 2> /dev/null \
     | awk -F'\t' '{print $1 "\t" $2}' > "$TMP/arp.tsv"
 
 log "nmap host discovery..."
@@ -66,19 +66,19 @@ for ip in "${HOSTS[@]}"; do
     [[ -n "$name" && "$name" != "$ip" ]] && printf '%s\t%s\n' "$ip" "$name"
 done > "$TMP/dns.tsv"
 for ip in "${HOSTS[@]}"; do
-    nb="$(timeout 3 nmblookup -A "$ip" 2>/dev/null | awk '/<00>/ && !/GROUP/ {print $1; exit}')"
+    nb="$(timeout 3 nmblookup -A "$ip" 2> /dev/null | awk '/<00>/ && !/GROUP/ {print $1; exit}')"
     [[ -n "$nb" ]] && printf '%s\t%s\n' "$ip" "$nb"
 done > "$TMP/netbios.tsv"
 
 log "mDNS browse (15s)..."
 # Only records seen on the LAN interface, which drops the Docker bridges.
-timeout 15 avahi-browse -artp 2>/dev/null \
+timeout 15 avahi-browse -artp 2> /dev/null \
     | awk -F';' -v ifc="$IFACE" '$1=="=" && $2==ifc && $3=="IPv4"' > "$TMP/mdns.txt"
 
 # nmap's top 100 TCP ports (what -F scans) plus IoT control ports it leaves out:
 # 6668 Tuya local API. (9999 TP-Link Kasa is already in the top 100.)
 EXTRA_PORTS="6668"
-PORTS="$( {
+PORTS="$({
     awk '$2 ~ /\/tcp$/ {split($2, p, "/"); print $3, p[1]}' /usr/share/nmap/nmap-services \
         | sort -rg | head -100 | awk '{print $2}'
     tr ',' '\n' <<< "$EXTRA_PORTS"
@@ -91,8 +91,8 @@ PORTS="$( {
 deep_scan() {
     timeout -k 30 25m \
         nmap -Pn -sV -O --osscan-guess -p "T:$PORTS" -T4 --version-light -e "$IFACE" \
-            --max-retries 2 --host-timeout 10m \
-            -iL "$1" -oX "$2" > /dev/null 2>&1 \
+        --max-retries 2 --host-timeout 10m \
+        -iL "$1" -oX "$2" > /dev/null 2>&1 \
         || log "nmap deep scan of $1 exited with status $? (timed out?)"
 }
 
@@ -116,7 +116,7 @@ fi
 
 log "Listening ports on this machine..."
 # Scanning ourselves over the LAN does not work, so ask the kernel instead.
-ss -Hltnp > "$TMP/local-ss.txt" 2>/dev/null
+ss -Hltnp > "$TMP/local-ss.txt" 2> /dev/null
 
 log "Building JSON..."
 # Build into the temp dir first, so a failed build never leaves an empty report behind.
@@ -128,7 +128,7 @@ mv "$TMP/report.json" "$OUT"
 
 # Keep the raw nmap output next to the report for troubleshooting.
 RAW="${OUT%.json}-raw"
-mkdir -p "$RAW" && cp "$TMP"/*.xml "$RAW"/ 2>/dev/null
+mkdir -p "$RAW" && cp "$TMP"/*.xml "$RAW"/ 2> /dev/null
 
 # Hand the report back to the user who ran sudo.
 [[ -n "${SUDO_USER:-}" ]] && chown -R "$SUDO_USER": "$OUT" "$RAW"

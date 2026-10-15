@@ -6,3 +6,5 @@ device-names.txt
 # Composer and tool caches
 vendor/
 .php-cs-fixer.cache
+.twig-cs-fixer.cache
+node_modules/
