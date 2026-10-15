@@ -124,9 +124,10 @@ IP, vendor and names, MAC, open ports (with IoT hints), OS guess, latency and,
 for merged input, how often and when the device was last seen. Devices missing
 from the latest scan are greyed out.
 
-The page is built from the files in `templates/`: `page.html.php` and
-`device-row.html.php` hold the markup, and `style.css` and `script.js` are
-inlined into the page. Edit those to change how the page looks.
+The page is built from the files in `templates/`: the [Twig](https://twig.symfony.com/)
+templates `page.html.twig` and `device-row.html.twig` hold the markup, and
+`style.css` and `script.js` are inlined into the page. Edit those to change how
+the page looks.
 
 Each row shows one line; click it (or press Enter) to expand the details:
 hostnames and mDNS services, filtered ports, OS notes and when the device was
@@ -164,7 +165,7 @@ class per file under the `LanSpy\` namespace, loaded by Composer's autoloader:
 - `src/Build/` — `build-report.php`: reads the scan files into the JSON report
 - `src/Merge/` — `merge-reports.php`: merges reports into the inventory
 - `src/Render/` — `render-html.php`: turns a report into the HTML page, using
-  the templates in `templates/`
+  the Twig templates in `templates/`
 - `src/Util/` — shared helpers (IP sorting, JSON output, timezone, strings)
 
 ## Development

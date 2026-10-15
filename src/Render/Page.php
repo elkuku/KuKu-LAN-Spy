@@ -26,14 +26,12 @@ final readonly class Page
             $custom = $this->names->lookup($device);
             $type = $custom->type ?? DeviceType::guess($device, $custom->name);
             $types[] = $type->value;
-            $rows[] = rtrim(Template::render('device-row.html.php', [
+            $rows[] = [
                 'device' => $device,
                 'type' => $type,
                 'customName' => $custom->name,
                 'online' => $report->isOnline($device),
-                'merged' => $report->merged,
-                'scans' => $report->scans,
-            ]));
+            ];
         }
 
         $counts = array_count_values($types);
@@ -53,18 +51,17 @@ final readonly class Page
             $stats[] = [$report->scans, 'scans merged'];
         }
 
-        return Template::render('page.html.php', [
+        return Template::render('page.html.twig', [
             'refresh' => $this->refresh,
-            'css' => Template::file('style.css'),
-            'script' => Template::file('script.js'),
             'network' => $report->network,
             'gateway' => $report->gateway,
-            'latestScan' => Html::formatTime($report->latest),
+            'latestScan' => $report->latest,
             'stats' => $stats,
             'typeOptions' => $typeOptions,
             'seenHeader' => $report->merged ? 'Seen' : 'Port scan',
             'rows' => $rows,
-            'generated' => date('Y-m-d H:i:s'),
+            'merged' => $report->merged,
+            'scans' => $report->scans,
         ]);
     }
 }

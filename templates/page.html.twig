@@ -1,0 +1,78 @@
+{#
+  The whole page: a standalone HTML file with the CSS and JS inlined.
+
+  refresh       int: seconds between auto-reloads, 0 for none
+  network       ?string
+  gateway       ?string
+  latestScan    ?string: ISO date of the latest scan
+  stats         list of [count, label]
+  typeOptions   list of [value, label, icon SVG body, device count]
+  seenHeader    string
+  rows          list of the device-row.html.twig variables, one per device
+  merged        bool: whether the input is a merged inventory
+  scans         int: number of merged scans
+#}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% if refresh %}
+<meta http-equiv="refresh" content="{{ refresh }}">
+{% endif %}
+<title>LAN Devices</title>
+<style>
+{{ source('style.css') -}}
+</style>
+</head>
+<body>
+<main>
+<h1>LAN Devices</h1>
+<div class="sub">{{ network }} · gateway {{ gateway ?? '?' }} · latest scan {{ latestScan ? latestScan|date('Y-m-d H:i') }}</div>
+<div class="stats">
+{% for stat in stats %}
+<div class="stat"><b>{{ stat[0] }}</b><span>{{ stat[1] }}</span></div>
+{% endfor %}
+</div>
+<div class="toolbar">
+<div class="filters">
+<div class="filter"><span id="type-label">Type</span>
+<div class="type-menu">
+<button type="button" id="type-button" aria-haspopup="listbox" aria-expanded="false"
+  aria-labelledby="type-label type-button"></button>
+<ul id="type-list" role="listbox" aria-labelledby="type-label" hidden>
+{% for option in typeOptions %}
+<li role="option" tabindex="-1" data-value="{{ option[0] }}">
+  <span class="icon"><svg viewBox="0 0 24 24" aria-hidden="true">{{ option[2]|raw }}</svg></span>{{ option[1] }}<span class="count">{{ option[3] }}</span>
+</li>
+{% endfor %}
+</ul>
+</div>
+</div>
+<label class="filter">MAC <input type="search" id="mac-filter" placeholder="e.g. 58:4b" spellcheck="false"
+  autocomplete="off"></label>
+</div>
+<button type="button" id="toggle-all">Expand all</button>
+</div>
+<div class="wrap">
+<table>
+<colgroup><col style="width:165px"><col style="width:20%"><col style="width:194px"><col>
+<col style="width:17%"><col style="width:95px"><col style="width:90px"></colgroup>
+<thead><tr><th>IP</th><th>Device</th><th>MAC</th><th>Ports</th><th>OS guess</th><th>Latency</th><th>{{ seenHeader }}</th></tr></thead>
+<tbody>
+{% for row in rows %}
+{% include 'device-row.html.twig' with row|merge({merged: merged, scans: scans}) only %}
+{% endfor %}
+</tbody>
+</table>
+<div class="empty" id="no-match" hidden>No devices match the filters.<button type="button" id="clear-filters">Clear filters</button></div>
+</div>
+<p class="muted">Generated {{ 'now'|date('Y-m-d H:i:s') }} by render-html.php.
+Click a row for details. Greyed-out rows were not seen in the latest scan; a yellow edge marks online
+devices without a custom name.</p>
+</main>
+<script>
+{{ source('script.js') -}}
+</script>
+</body>
+</html>
