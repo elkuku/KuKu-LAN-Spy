@@ -141,6 +141,14 @@ tr.offline td {
   margin: 0 4px 4px 0;
   font-size: 12px;
   white-space: nowrap;
+  /* A chip longer than its column ends in "…" in collapsed rows and wraps in open ones. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+tr.open .chip {
+  white-space: normal;
 }
 .chip.hint {
   background: var(--hint);
