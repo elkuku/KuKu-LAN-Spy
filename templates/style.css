@@ -416,7 +416,7 @@ tr.open .less {
 }
 .history-grid {
   display: grid;
-  grid-template-columns: minmax(0, 240px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
   gap: 6px 12px;
   align-items: center;
 }
